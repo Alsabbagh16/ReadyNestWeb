@@ -11,13 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/lib/supabase';
+import { Chrome } from 'lucide-react';
 
 const AuthPage = () => {
-  // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Registration form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
@@ -43,6 +43,31 @@ const AuthPage = () => {
       await login(loginEmail, loginPassword);
     } catch (error) {
       console.error("Login failed:", error);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/dashboard' 
+        }
+      });
+      if (error) {
+        toast({
+          title: "Google Sign-In Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Google Sign-In Failed",
+        description: "An unexpected error occurred.",
+        variant: "destructive"
+      });
+      console.error("Google login error:", error);
     }
   };
 
@@ -129,6 +154,12 @@ const AuthPage = () => {
                   </div>
                   <Button type="submit" className="w-full">Login</Button>
                 </form>
+                <div className="mt-4 text-center text-sm text-gray-600">
+                  Or continue with
+                </div>
+                <Button variant="outline" className="w-full mt-2" onClick={handleGoogleLogin}>
+                  <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -243,3 +274,4 @@ const AuthPage = () => {
 };
 
 export default AuthPage;
+  
