@@ -11,16 +11,19 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, User, Mail, Calendar, Briefcase, CreditCard, Edit, MapPin, FileText, UploadCloud, Save } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, Briefcase, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import EditUserForm from '@/components/AdminDashboard/EditUserForm';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 const formatDateSafe = (dateString) => {
     try {
-        if (!dateString || isNaN(new Date(dateString).getTime())) return 'N/A';
-        return format(new Date(dateString), 'MMM d, yyyy');
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        return format(date, 'MMM d, yyyy');
     } catch (error) {
         console.error("Error formatting date:", dateString, error);
         return 'Invalid Date';
@@ -50,6 +53,9 @@ const AdminUserProfilePage = () => {
     const [loading, setLoading] = useState(true);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const fileInputRef = useRef(null);
+    const { adminProfile } = useAdminAuth();
+
+    const canEditUser = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
 
     const fetchData = async () => {
         setLoading(true);
@@ -70,7 +76,6 @@ const AdminUserProfilePage = () => {
              toast({ title: "Error", description: `Failed to fetch user data: ${error.message}`, variant: "destructive" });
         } finally {
             setLoading(false);
-            setIsEditDialogOpen(false);
         }
     };
 
@@ -80,9 +85,14 @@ const AdminUserProfilePage = () => {
 
 
     const handleSaveUser = async (userData) => {
+        if (!canEditUser) {
+            toast({ title: "Permission Denied", description: "You do not have permission to edit this user.", variant: "destructive" });
+            return;
+        }
         try {
             await adminUpdateUserProfile(userData.id, userData);
             toast({ title: "User Updated", description: `Details for ${userData.email} saved.` });
+            setIsEditDialogOpen(false); 
             fetchData();
         } catch (error) {
             toast({ title: "Error", description: `Could not update user: ${error.message}`, variant: "destructive" });
@@ -124,28 +134,37 @@ const AdminUserProfilePage = () => {
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
-                <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+                <Button variant="outline" size="sm" onClick={() => navigate('/admin-dashboard/accounts')}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Accounts List
                 </Button>
-                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                            <Edit className="mr-2 h-4 w-4" /> Edit User
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>Edit User</DialogTitle>
-                            <DialogDescription>Update the details for {user.email}.</DialogDescription>
-                        </DialogHeader>
-                        <EditUserForm user={user} onSave={handleSaveUser} onCancel={() => setIsEditDialogOpen(false)} />
-                    </DialogContent>
-                </Dialog>
+                {canEditUser && (
+                    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                                <Edit className="mr-2 h-4 w-4" /> Edit User
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-lg">
+                            <DialogHeader>
+                                <DialogTitle>Edit User</DialogTitle>
+                                <DialogDescription>Update the details for {user.email}.</DialogDescription>
+                            </DialogHeader>
+                            <EditUserForm user={user} onSave={handleSaveUser} onCancel={() => setIsEditDialogOpen(false)} />
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
+
+            {!canEditUser && (
+                <div className="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md flex items-center">
+                    <ShieldAlert className="h-5 w-5 mr-2" />
+                    <p className="text-sm">Your role does not permit editing this user's profile.</p>
+                </div>
+            )}
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-2xl">{`${user.first_name || ''} ${user.last_name || ''}`.trim()}</CardTitle>
+                    <CardTitle className="text-2xl">{user.name}</CardTitle>
                     <CardDescription>{user.user_type || 'Personal'} User</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">

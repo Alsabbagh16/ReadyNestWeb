@@ -3,11 +3,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getEmployees, addEmployee, updateEmployee, deleteEmployee } from '@/lib/storage/employeeStorage';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Terminal } from 'lucide-react';
+import { PlusCircle, Terminal, ShieldAlert } from 'lucide-react';
 import EmployeeTable from '@/components/AdminDashboard/EmployeeTable';
 import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 const EmployeesTab = () => {
   const [employees, setEmployees] = useState([]);
@@ -16,6 +16,9 @@ const EmployeesTab = () => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [formError, setFormError] = useState(null);
   const { toast } = useToast();
+  const { adminProfile } = useAdminAuth();
+
+  const canManageEmployees = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
 
   const fetchEmployeesCallback = useCallback(async () => {
     setLoading(true);
@@ -35,6 +38,10 @@ const EmployeesTab = () => {
   }, [fetchEmployeesCallback]);
 
   const handleSaveEmployee = async (employeeData) => {
+    if (!canManageEmployees) {
+      toast({ title: "Permission Denied", description: "You do not have permission to manage employees.", variant: "destructive" });
+      return;
+    }
     setFormError(null); 
     try {
       if (editingEmployee) {
@@ -55,12 +62,15 @@ const EmployeesTab = () => {
         errorMessage = error.message; 
       }
       toast({ title: "Error Saving Employee", description: errorMessage, variant: "destructive" });
-      setFormError(errorMessage); // Keep dialog open by setting formError
-      // Do not close dialog here, let user see the error
+      setFormError(errorMessage);
     }
   };
 
   const handleDeleteEmployee = async (employeeId, employeeName) => {
+     if (!canManageEmployees) {
+      toast({ title: "Permission Denied", description: "You do not have permission to delete employees.", variant: "destructive" });
+      return;
+    }
      if (window.confirm(`Are you sure you want to delete employee ${employeeName}? This will also delete their Supabase Auth user and cannot be undone.`)) {
         try {
             await deleteEmployee(employeeId);
@@ -73,12 +83,20 @@ const EmployeesTab = () => {
   };
 
   const openEditDialog = (employee) => {
+    if (!canManageEmployees) {
+      toast({ title: "Permission Denied", description: "You do not have permission to edit employees.", variant: "destructive" });
+      return;
+    }
     setEditingEmployee(employee);
     setFormError(null);
     setIsDialogOpen(true);
   };
 
    const openNewDialog = () => {
+    if (!canManageEmployees) {
+      toast({ title: "Permission Denied", description: "You do not have permission to add employees.", variant: "destructive" });
+      return;
+    }
     setEditingEmployee(null);
     setFormError(null);
     setIsDialogOpen(true);
@@ -88,7 +106,7 @@ const EmployeesTab = () => {
     setIsDialogOpen(open);
     if (!open) {
       setEditingEmployee(null);
-      setFormError(null); // Clear error when dialog is explicitly closed
+      setFormError(null);
     }
   };
 
@@ -98,19 +116,27 @@ const EmployeesTab = () => {
 
   return (
     <div className="p-6">
-       <div className="flex justify-end mb-4">
-            <Button onClick={openNewDialog} size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
-            </Button>
-       </div>
-        <Alert className="mb-4 bg-yellow-50 border-yellow-300 text-yellow-700">
-            <Terminal className="h-4 w-4 stroke-yellow-600" />
-            <AlertTitle className="font-semibold text-yellow-800">Important Notes:</AlertTitle>
+       {canManageEmployees && (
+         <div className="flex justify-end mb-4">
+              <Button onClick={openNewDialog} size="sm">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
+              </Button>
+         </div>
+       )}
+       {!canManageEmployees && (
+         <div className="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md flex items-center">
+            <ShieldAlert className="h-5 w-5 mr-2" />
+            <p className="text-sm">Your role ('staff') does not permit adding, editing, or deleting employees.</p>
+        </div>
+       )}
+        <Alert className="mb-4 bg-blue-50 border-blue-300 text-blue-700">
+            <Terminal className="h-4 w-4 stroke-blue-600" />
+            <AlertTitle className="font-semibold text-blue-800">Important Notes:</AlertTitle>
             <AlertDescription className="text-sm">
                 <ul className="list-disc list-outside pl-5 space-y-1">
-                    <li>Adding an employee also creates a corresponding Supabase Auth user with the provided email and password.</li>
-                    <li>Deleting an employee also deletes their Supabase Auth user. This action is irreversible.</li>
-                    <li>Updating an employee's password will change their Supabase Auth login password. This feature requires appropriate admin permissions in Supabase (RLS on `auth.users` or an Edge Function). If it fails, check Supabase logs.</li>
+                    <li>Adding an employee creates a Supabase Auth user.</li>
+                    <li>Deleting an employee also deletes their Supabase Auth user (irreversible).</li>
+                    <li>Password updates change Supabase Auth login (requires RLS/Edge Function for `auth.users`).</li>
                 </ul>
             </AlertDescription>
         </Alert>
@@ -118,8 +144,9 @@ const EmployeesTab = () => {
         employees={employees}
         onEdit={openEditDialog}
         onDelete={handleDeleteEmployee}
+        canManage={canManageEmployees}
       />
-      {isDialogOpen && (
+      {isDialogOpen && canManageEmployees && (
         <EmployeeDialog
             isOpen={isDialogOpen}
             onOpenChange={handleDialogChange}
@@ -134,3 +161,4 @@ const EmployeesTab = () => {
 };
 
 export default EmployeesTab;
+  

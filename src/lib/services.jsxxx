@@ -1,0 +1,172 @@
+
+export const services = [
+  {
+    id: "standard-cleaning",
+    name: "Standard Cleaning",
+    description: "A thorough cleaning of all rooms in your home, including dusting, vacuuming, and mopping.",
+    features: [
+      "Dusting all accessible surfaces",
+      "Vacuuming carpets and floors",
+      "Mopping all hard floors",
+      "Cleaning kitchen countertops and appliances",
+      "Cleaning and sanitizing bathrooms",
+      "Emptying trash bins"
+    ],
+    basePrice: 120,
+    image: "standard-cleaning"
+  },
+  {
+    id: "deep-cleaning",
+    name: "Deep Cleaning",
+    description: "An intensive cleaning service that reaches the deep grime and dirt in your home.",
+    features: [
+      "Everything in Standard Cleaning",
+      "Cleaning inside ovens and refrigerators",
+      "Washing interior windows",
+      "Cleaning under furniture",
+      "Detailed bathroom cleaning",
+      "Cleaning light fixtures and ceiling fans",
+      "Detailed baseboards and door frames cleaning"
+    ],
+    basePrice: 220,
+    image: "deep-cleaning"
+  },
+  {
+    id: "move-in-out",
+    name: "Move In/Out Cleaning",
+    description: "Prepare your home for new tenants or ensure you get your deposit back.",
+    features: [
+      "Everything in Deep Cleaning",
+      "Cleaning inside cabinets and drawers",
+      "Cleaning inside all appliances",
+      "Detailed wall cleaning",
+      "Cleaning all windows (interior and exterior)",
+      "Garage sweeping",
+      "Cleaning all light fixtures"
+    ],
+    basePrice: 320,
+    image: "move-in-out"
+  },
+  {
+    id: "office-cleaning",
+    name: "Office Cleaning",
+    description: "Keep your workspace clean and professional with our office cleaning service.",
+    features: [
+      "Dusting and cleaning all surfaces",
+      "Vacuuming and mopping floors",
+      "Cleaning and sanitizing restrooms",
+      "Cleaning break rooms and kitchens",
+      "Emptying trash bins",
+      "Cleaning glass doors and partitions"
+    ],
+    basePrice: 150,
+    image: "office-cleaning"
+  }
+];
+
+export const subscriptionPlans = [
+  {
+    id: "weekly",
+    name: "Weekly",
+    description: "Perfect for busy households that need regular maintenance",
+    discount: 20,
+    popular: true
+  },
+  {
+    id: "bi-weekly",
+    name: "Bi-Weekly",
+    description: "Ideal for maintaining cleanliness with less frequent service",
+    discount: 15,
+    popular: false
+  },
+  {
+    id: "monthly",
+    name: "Monthly",
+    description: "A monthly refresh to keep your home in good condition",
+    discount: 10,
+    popular: false
+  }
+];
+
+export const calculatePrice = (serviceId, planId = null, homeSize) => {
+  const service = services.find(s => s.id === serviceId);
+  if (!service) return 0;
+  
+  // Base price for the selected service
+  let price = service.basePrice;
+  
+  // Adjust price based on home size
+  if (homeSize === "medium") {
+    price *= 1.3; // 30% more for medium homes
+  } else if (homeSize === "large") {
+    price *= 1.6; // 60% more for large homes
+  }
+  
+  // Apply subscription discount if applicable
+  if (planId) {
+    const plan = subscriptionPlans.find(p => p.id === planId);
+    if (plan) {
+      price = price * (1 - plan.discount / 100);
+    }
+  }
+  
+  return Math.round(price);
+};
+
+export const testimonials = [
+  {
+    id: 1,
+    name: "Sarah Johnson",
+    role: "Homeowner",
+    content: "CleanSweep has transformed my life! With their weekly cleaning service, I no longer stress about keeping my home tidy while juggling work and family. The team is professional, thorough, and always on time.",
+    avatar: "sarah"
+  },
+  {
+    id: 2,
+    name: "Michael Rodriguez",
+    role: "Business Owner",
+    content: "We've been using CleanSweep for our office cleaning for over a year now. The difference in our workspace is remarkable. Our employees are happier and more productive in a clean environment. Highly recommend their services!",
+    avatar: "michael"
+  },
+  {
+    id: 3,
+    name: "Emily Chen",
+    role: "Apartment Resident",
+    content: "I was amazed by the deep cleaning service. Areas I didn't even know were dirty are now spotless! The attention to detail is impressive, and the staff is friendly and respectful of my space.",
+    avatar: "emily"
+  },
+  {
+    id: 4,
+    name: "David Wilson",
+    role: "Real Estate Agent",
+    content: "I recommend CleanSweep to all my clients for move-in/move-out cleanings. They make properties show-ready and have helped me close deals faster. Their reliability makes my job easier.",
+    avatar: "david"
+  }
+];
+
+export const faqs = [
+  {
+    question: "How do I schedule a cleaning service?",
+    answer: "You can easily schedule a cleaning service through our website by selecting the service type, choosing a date and time, and providing your address and contact information. We'll confirm your appointment within 24 hours."
+  },
+  {
+    question: "What's included in your standard cleaning service?",
+    answer: "Our standard cleaning service includes dusting all accessible surfaces, vacuuming carpets and floors, mopping hard floors, cleaning kitchen countertops and appliances, cleaning and sanitizing bathrooms, and emptying trash bins."
+  },
+  {
+    question: "Do I need to provide cleaning supplies?",
+    answer: "No, our professional cleaners bring all necessary cleaning supplies and equipment. However, if you prefer specific products to be used in your home, you can provide them, and our team will be happy to use them."
+  },
+  {
+    question: "How do your subscription plans work?",
+    answer: "Our subscription plans offer regular cleaning services at discounted rates. You can choose between weekly, bi-weekly, or monthly services. The subscription automatically renews, and you can cancel or modify your plan at any time with 7 days' notice."
+  },
+  {
+    question: "Are your cleaning products eco-friendly?",
+    answer: "Yes, we use environmentally friendly cleaning products that are effective yet safe for your family, pets, and the environment. If you have specific allergies or concerns, please let us know, and we can adjust accordingly."
+  },
+  {
+    question: "What if I'm not satisfied with the cleaning?",
+    answer: "Your satisfaction is our priority. If you're not completely satisfied with our service, please contact us within 24 hours, and we'll return to re-clean the areas in question at no additional cost."
+  }
+];

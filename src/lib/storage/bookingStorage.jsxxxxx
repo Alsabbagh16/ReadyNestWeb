@@ -1,0 +1,126 @@
+
+import { v4 as uuidv4 } from 'uuid';
+import { findUserByEmail, updateCredits } from './userStorage'; // Import necessary user functions
+
+const BOOKINGS_KEY = 'readynest_bookings';
+
+export const getBookings = () => {
+  const bookings = localStorage.getItem(BOOKINGS_KEY);
+  return bookings ? JSON.parse(bookings) : [];
+};
+
+export const saveBookings = (bookings) => {
+  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+};
+
+export const addBooking = (bookingData) => {
+  const bookings = getBookings();
+  const newBooking = {
+    ...bookingData,
+    id: `RN-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+    createdAt: new Date().toISOString(),
+    status: bookingData.status || 'booked_pending_payment',
+    serviceStatus: 'Pending',
+    assignedEmployeeId: null,
+    paidWithCredits: bookingData.paidWithCredits || 0,
+  };
+  bookings.push(newBooking);
+  saveBookings(bookings);
+  return newBooking;
+};
+
+export const getBookingById = (id) => {
+    const bookings = getBookings();
+    return bookings.find(b => b.id === id);
+};
+
+export const updateBookingStatus = (id, newStatus, serviceStatusUpdate = null) => {
+    let bookings = getBookings();
+    let bookingUpdated = false;
+    bookings = bookings.map(booking => {
+        if (booking.id === id) {
+            bookingUpdated = true;
+            let updatedServiceStatus = booking.serviceStatus;
+            if (serviceStatusUpdate) {
+                 updatedServiceStatus = serviceStatusUpdate;
+            } else if (newStatus === 'cancelled') {
+                 updatedServiceStatus = 'Cancelled';
+            } else if (newStatus === 'refunded') {
+                 updatedServiceStatus = 'Cancelled';
+            }
+            return { ...booking, status: newStatus, serviceStatus: updatedServiceStatus, updatedAt: new Date().toISOString() };
+        }
+        return booking;
+    });
+    if (bookingUpdated) {
+        saveBookings(bookings);
+    } else {
+        throw new Error("Booking not found for status update");
+    }
+};
+
+export const updateBookingServiceStatus = (id, newServiceStatus) => {
+    let bookings = getBookings();
+    let bookingUpdated = false;
+    bookings = bookings.map(booking => {
+        if (booking.id === id) {
+            bookingUpdated = true;
+            let newStatus = booking.status;
+            if (newServiceStatus === 'Completed' && booking.status !== 'refunded' && booking.status !== 'cancelled') {
+                newStatus = 'completed';
+            } else if (newServiceStatus === 'Cancelled') {
+                 newStatus = 'cancelled';
+            }
+            return { ...booking, serviceStatus: newServiceStatus, status: newStatus, updatedAt: new Date().toISOString() };
+        }
+        return booking;
+    });
+    if (bookingUpdated) {
+        saveBookings(bookings);
+    } else {
+        throw new Error("Booking not found for service status update");
+    }
+};
+
+export const assignEmployeeToBooking = (bookingId, employeeId) => {
+    let bookings = getBookings();
+    let bookingUpdated = false;
+    bookings = bookings.map(booking => {
+        if (booking.id === bookingId) {
+            bookingUpdated = true;
+            let serviceStatus = booking.serviceStatus;
+            if (serviceStatus === 'Pending') {
+                serviceStatus = 'Scheduled';
+            }
+            return { ...booking, assignedEmployeeId: employeeId, serviceStatus: serviceStatus, updatedAt: new Date().toISOString() };
+        }
+        return booking;
+    });
+    if (bookingUpdated) {
+        saveBookings(bookings);
+    } else {
+        throw new Error("Booking not found for employee assignment");
+    }
+};
+
+export const cancelBooking = (id) => {
+  updateBookingStatus(id, 'cancelled', 'Cancelled');
+  // Potential: Add logic to refund credits if cancelled and paid with credits
+};
+
+export const refundBooking = (id) => {
+  const booking = getBookingById(id);
+  if (!booking) throw new Error("Booking not found for refund");
+
+  updateBookingStatus(id, 'refunded', 'Cancelled');
+
+  if (booking.paidWithCredits && booking.paidWithCredits > 0) {
+      const user = findUserByEmail(booking.email); // Use findUserByEmail from userStorage
+      if (user) {
+          updateCredits(user.id, booking.paidWithCredits); // Use updateCredits from userStorage
+      } else {
+           console.warn(`User ${booking.email} not found to refund credits for booking ${id}`);
+      }
+  }
+};
+  

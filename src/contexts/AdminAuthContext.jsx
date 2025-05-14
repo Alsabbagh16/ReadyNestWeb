@@ -38,15 +38,15 @@ export const AdminAuthProvider = ({ children }) => {
     try {
       const employeeProfile = await findEmployeeById(supabaseUserId);
       console.log('[AdminAuthContext] Fetched employeeProfile:', employeeProfile);
-      if (employeeProfile && (employeeProfile.role === 'admin' || employeeProfile.role === 'superadmin')) {
+      if (employeeProfile && (employeeProfile.role === 'admin' || employeeProfile.role === 'superadmin' || employeeProfile.role === 'staff')) {
         setAdminProfile(employeeProfile);
         setIsAdmin(true);
         console.log('[AdminAuthContext] Admin profile found and set. IsAdmin: true.');
       } else {
         resetAdminState();
-        console.log('[AdminAuthContext] Admin profile not found or not admin role. IsAdmin: false.');
+        console.log('[AdminAuthContext] Admin profile not found or not admin/staff role. IsAdmin: false.');
         if (isExplicitAdminLogin && employeeProfile) { 
-           toast({ title: "Access Denied", description: "You do not have admin privileges.", variant: "destructive" });
+           toast({ title: "Access Denied", description: "You do not have authorized privileges.", variant: "destructive" });
         } else if (isExplicitAdminLogin && !employeeProfile) {
            toast({ title: "Login Failed", description: "Admin account not found in employee records.", variant: "destructive" });
         }
@@ -56,7 +56,7 @@ export const AdminAuthProvider = ({ children }) => {
       if (isExplicitAdminLogin || (error.code && error.code !== 'PGRST116') ) { 
         toast({ title: "Admin Profile Error", description: `Could not fetch admin details: ${error.message}`, variant: "destructive" });
       } else if (error.code === 'PGRST116'){
-        console.log('[AdminAuthContext] findEmployeeById returned no rows (PGRST116), likely not an admin. Handled gracefully.');
+        console.log('[AdminAuthContext] findEmployeeById returned no rows (PGRST116), likely not an admin/staff. Handled gracefully.');
       }
       resetAdminState();
     } finally {
@@ -133,9 +133,9 @@ export const AdminAuthProvider = ({ children }) => {
         console.warn('[AdminAuthContext] adminLogin: Employee not found by email.');
         throw new Error("Admin account not found or not registered as an employee.");
       }
-      if (employee.role !== 'admin' && employee.role !== 'superadmin') {
-        console.warn('[AdminAuthContext] adminLogin: Employee role not admin/superadmin.');
-        throw new Error("Access Denied: User is not an authorized administrator.");
+      if (employee.role !== 'admin' && employee.role !== 'superadmin' && employee.role !== 'staff') {
+        console.warn('[AdminAuthContext] adminLogin: Employee role not admin/superadmin/staff.');
+        throw new Error("Access Denied: User is not an authorized administrator or staff.");
       }
       console.log('[AdminAuthContext] adminLogin: Employee found with correct role:', employee.id);
 
@@ -150,14 +150,13 @@ export const AdminAuthProvider = ({ children }) => {
       }
       console.log('[AdminAuthContext] adminLogin: Supabase signInWithPassword successful for:', supabaseSessUser.id);
       
-      setAdminUser(supabaseSessUser); // Set user immediately
-      await fetchAdminProfileAndUpdateState(supabaseSessUser.id, true); // Explicitly fetch profile for admin login
+      setAdminUser(supabaseSessUser); 
+      await fetchAdminProfileAndUpdateState(supabaseSessUser.id, true); 
       
-      if (isAdmin && adminProfile) { // Check if fetchAdminProfileAndUpdateState was successful
+      if (isAdmin && adminProfile) { 
          toast({ title: "Admin Login Successful", description: `Welcome back, ${adminProfile.full_name || 'Admin'}!` });
-      } else if (!isAdmin && !adminProfileLoading) { // If fetch completed but user is not admin
-          await adminLogout(); // Force logout if not a valid admin after all checks
-          throw new Error("Admin login succeeded but employee record or role is invalid.");
+      } else if (!isAdmin && !adminProfileLoading) { 
+          
       }
 
     } catch (error) {

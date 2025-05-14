@@ -1,0 +1,171 @@
+
+import { v4 as uuidv4 } from 'uuid';
+
+const USERS_KEY = 'readynest_users';
+
+export const getUsers = () => {
+  const users = localStorage.getItem(USERS_KEY);
+  return users ? JSON.parse(users) : [];
+};
+
+export const saveUsers = (users) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
+export const addUser = (userData) => {
+  const users = getUsers();
+  const newUser = {
+    ...userData,
+    id: uuidv4(),
+    createdAt: new Date().toISOString(),
+    credits: 0,
+    addresses: []
+  };
+  // Check for existing email before adding
+  if (users.some(user => user.email === newUser.email)) {
+      throw new Error("User with this email already exists.");
+  }
+  users.push(newUser);
+  saveUsers(users);
+  return newUser;
+};
+
+export const findUserByEmail = (email) => {
+  const users = getUsers();
+  return users.find(user => user.email === email);
+};
+
+export const findUserById = (id) => {
+    const users = getUsers();
+    return users.find(user => user.id === id);
+};
+
+
+export const updateUserProfile = (email, updatedData) => {
+  let users = getUsers();
+  let userFound = false;
+  users = users.map(user => {
+    if (user.email === email) {
+      userFound = true;
+      return { ...user, ...updatedData, updatedAt: new Date().toISOString() };
+    }
+    return user;
+  });
+  if (userFound) {
+      saveUsers(users);
+  } else {
+      throw new Error("User not found for profile update");
+  }
+};
+
+// --- User Profile (Simplified Get/Save for AuthContext) ---
+const USER_PROFILE_KEY = 'readynest_user_profile'; // Separate key for logged-in user profile
+
+export const saveUserProfile = (profile) => {
+  if (profile) {
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+  } else {
+    localStorage.removeItem(USER_PROFILE_KEY);
+  }
+};
+
+export const getUserProfile = () => {
+  const profile = localStorage.getItem(USER_PROFILE_KEY);
+  return profile ? JSON.parse(profile) : null;
+};
+
+
+// --- Address Management (Operates on the main users array) ---
+export const addAddress = (userId, addressData) => {
+    let users = getUsers();
+    let userUpdated = false;
+    users = users.map(user => {
+        if (user.id === userId) {
+            const newAddress = { ...addressData, id: uuidv4() };
+            user.addresses = [...(user.addresses || []), newAddress];
+            userUpdated = true;
+        }
+        return user;
+    });
+    if (userUpdated) {
+        saveUsers(users);
+        // Return the updated user's addresses
+        const updatedUser = users.find(u => u.id === userId);
+        return updatedUser?.addresses || [];
+    } else {
+        throw new Error("User not found to add address");
+    }
+};
+
+export const updateAddress = (userId, addressId, updatedAddressData) => {
+    let users = getUsers();
+    let addressUpdated = false;
+    users = users.map(user => {
+        if (user.id === userId) {
+            user.addresses = (user.addresses || []).map(addr => {
+                if (addr.id === addressId) {
+                    addressUpdated = true;
+                    return { ...addr, ...updatedAddressData };
+                }
+                return addr;
+            });
+        }
+        return user;
+    });
+    if (addressUpdated) {
+        saveUsers(users);
+        const updatedUser = users.find(u => u.id === userId);
+        return updatedUser?.addresses || [];
+    } else {
+        throw new Error("Address or user not found for update");
+    }
+};
+
+export const deleteAddress = (userId, addressId) => {
+    let users = getUsers();
+    let addressDeleted = false;
+    users = users.map(user => {
+        if (user.id === userId) {
+            const initialLength = user.addresses?.length || 0;
+            user.addresses = (user.addresses || []).filter(addr => addr.id !== addressId);
+             if ((user.addresses?.length || 0) < initialLength) {
+                addressDeleted = true;
+            }
+        }
+        return user;
+    });
+    if (addressDeleted) {
+        saveUsers(users);
+        const updatedUser = users.find(u => u.id === userId);
+        return updatedUser?.addresses || [];
+    } else {
+         throw new Error("Address or user not found for deletion");
+    }
+};
+
+// --- Credit Management (Operates on the main users array) ---
+export const updateCredits = (userId, amount) => {
+    let users = getUsers();
+    let newCredits = 0;
+    let userFound = false;
+    users = users.map(user => {
+        if (user.id === userId) {
+            userFound = true;
+            user.credits = (user.credits || 0) + amount;
+            newCredits = user.credits; // Get the updated credits
+        }
+        return user;
+    });
+    if (userFound) {
+        saveUsers(users);
+        return newCredits; // Return the updated credit amount
+    } else {
+        throw new Error("User not found to update credits");
+    }
+};
+
+export const getCredits = (userId) => {
+    const user = findUserById(userId);
+    return user?.credits || 0;
+};
+  

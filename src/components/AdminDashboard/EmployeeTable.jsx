@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2 } from 'lucide-react';
 
-const EmployeeTable = ({ employees, onEdit, onDelete }) => {
+const EmployeeTable = ({ employees, onEdit, onDelete, canManage }) => {
   if (!employees || employees.length === 0) {
     return <p className="p-6 text-center">No employees found. This might be due to RLS policies or no employees have been added yet.</p>;
   }
@@ -20,7 +20,7 @@ const EmployeeTable = ({ employees, onEdit, onDelete }) => {
             <TableHead>Mobile</TableHead>
             <TableHead>Position</TableHead>
             <TableHead>Role</TableHead>
-            <TableHead>Actions</TableHead>
+            {canManage && <TableHead>Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -35,21 +35,23 @@ const EmployeeTable = ({ employees, onEdit, onDelete }) => {
               <TableCell>{emp.mobile}</TableCell>
               <TableCell>{emp.position}</TableCell>
               <TableCell>{emp.role}</TableCell>
-              <TableCell className="space-x-1 whitespace-nowrap">
-                <Button variant="ghost" size="icon" onClick={() => onEdit(emp)}>
-                  <Edit className="h-4 w-4" />
-                  <span className="sr-only">Edit</span>
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-red-600 hover:text-red-700 hover:bg-red-100" 
-                  onClick={() => onDelete(emp.id, emp.full_name || emp.email)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete</span>
-                </Button>
-              </TableCell>
+              {canManage && (
+                <TableCell className="space-x-1 whitespace-nowrap">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(emp)}>
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Edit</span>
+                    </Button>
+                    <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-red-600 hover:text-red-700 hover:bg-red-100" 
+                    onClick={() => onDelete(emp.id, emp.full_name || emp.email)}
+                    >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete</span>
+                    </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

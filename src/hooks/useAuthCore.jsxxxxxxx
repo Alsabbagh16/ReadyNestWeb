@@ -1,0 +1,145 @@
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useToast } from "@/components/ui/use-toast";
+import { useLoading } from '@/contexts/LoadingContext';
+
+export const useAuthCore = () => {
+  const [user, setUser] = useState(undefined);
+  const [authContextLoading, setAuthContextLoading] = useState(true);
+  const { toast } = useToast();
+  const { addLoadingMessage, removeLoadingMessage } = useLoading();
+
+  useEffect(() => {
+    setAuthContextLoading(true);
+    const initialSessionMsgId = addLoadingMessage("Checking user session (AuthCore)...");
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        toast({ title: "Session Error (AuthCore)", description: error.message, variant: "destructive" });
+        setUser(null);
+      } else {
+        setUser(session?.user ?? null);
+      }
+    }).catch(error => {
+      toast({ title: "Session Error (AuthCore)", description: "An unexpected error occurred.", variant: "destructive" });
+      setUser(null);
+    }).finally(() => {
+      removeLoadingMessage(initialSessionMsgId);
+      setAuthContextLoading(false);
+    });
+
+    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const authChangeMsgId = addLoadingMessage("Processing authentication state (AuthCore)...");
+        setAuthContextLoading(true);
+        setUser(session?.user ?? null);
+        removeLoadingMessage(authChangeMsgId);
+        setAuthContextLoading(false);
+      }
+    );
+
+    return () => {
+      authListener?.unsubscribe();
+    };
+  }, [addLoadingMessage, removeLoadingMessage, toast]);
+
+  const login = useCallback(async (email, password) => {
+    setAuthContextLoading(true);
+    const loginMsgId = addLoadingMessage("Logging in (AuthCore)...");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      toast({ title: "Login Successful", description: "Welcome back!" });
+      // onAuthStateChange will handle setting user and further loading states
+    } catch (error) {
+      toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+      setAuthContextLoading(false); 
+      throw error;
+    } finally {
+      removeLoadingMessage(loginMsgId);
+    }
+  }, [toast, addLoadingMessage, removeLoadingMessage]);
+
+  const signup = useCallback(async (email, password, firstName, lastName, userType = 'Personal') => {
+    setAuthContextLoading(true);
+    const signupMsgId = addLoadingMessage("Creating account (AuthCore)...");
+    try {
+      const { data: { user: newUser }, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            user_type: userType === 'Business' ? 'business_customer' : 'personal_customer',
+          },
+        },
+      });
+      if (error) throw error;
+      if (!newUser) throw new Error("Signup successful, but no user data returned (AuthCore).");
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: newUser.id,
+          email: newUser.email,
+          first_name: firstName,
+          last_name: lastName,
+          user_type: userType === 'Business' ? 'business_customer' : 'personal_customer',
+          credits: 0,
+        });
+
+      if (profileError) {
+        toast({ title: "Profile Creation Failed", description: profileError.message, variant: "destructive" });
+      }
+      toast({ title: "Signup Successful", description: "Welcome! Please check your email to verify your account." });
+      // onAuthStateChange will handle setting user and further loading states
+    } catch (error) {
+      toast({ title: "Signup Failed", description: error.message, variant: "destructive" });
+      setAuthContextLoading(false);
+      throw error;
+    } finally {
+      removeLoadingMessage(signupMsgId);
+    }
+  }, [toast, addLoadingMessage, removeLoadingMessage]);
+
+  const logout = useCallback(async (options = { showToast: true }) => {
+    setAuthContextLoading(true);
+    const logoutMsgId = addLoadingMessage("Logging out (AuthCore)...");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      if (options.showToast) {
+        toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      }
+      // onAuthStateChange will set user to null.
+    } catch (error) {
+      if (options.showToast) {
+        toast({ title: "Logout Failed", description: error.message, variant: "destructive" });
+      }
+      setUser(null); // Explicitly set user to null on error
+      setAuthContextLoading(false);
+    } finally {
+      // Ensure user is null and loading is false, even if onAuthStateChange is delayed
+      setUser(null);
+      removeLoadingMessage(logoutMsgId);
+      setAuthContextLoading(false);
+    }
+  }, [toast, addLoadingMessage, removeLoadingMessage]);
+  
+  const internalSetUser = useCallback((newUserState) => {
+    setUser(newUserState);
+  }, []);
+
+
+  return {
+    user,
+    authContextLoading,
+    login,
+    signup,
+    logout,
+    _setUserRawCore: internalSetUser, // For AuthContext to sync state if needed
+  };
+};
+  

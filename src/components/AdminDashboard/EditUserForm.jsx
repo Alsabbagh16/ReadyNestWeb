@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,16 +9,31 @@ import { Eye, EyeOff } from 'lucide-react';
 
 const EditUserForm = ({ user, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    id: user?.id || '', // Keep ID for update reference
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    email: user?.email || '',
-    dob: user?.dob || '',
-    userType: user?.userType || 'Personal',
-    credits: user?.credits || 0,
-    password: '', // Always start empty for security
+    id: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    dob: '',
+    user_type: 'Personal',
+    credits: 0,
+    password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        id: user.id || '',
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        dob: user.dob ? (user.dob instanceof Date ? user.dob.toISOString().split('T')[0] : user.dob.split('T')[0]) : '',
+        user_type: user.user_type || 'Personal',
+        credits: user.credits || 0,
+        password: '',
+      });
+    }
+  }, [user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,13 +41,12 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
   };
 
    const handleSelectChange = (value) => {
-    setFormData(prev => ({ ...prev, userType: value }));
+    setFormData(prev => ({ ...prev, user_type: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Basic validation
-    if (!formData.firstName || !formData.lastName || !formData.email) {
+    if (!formData.first_name || !formData.last_name || !formData.email) {
         alert("First Name, Last Name, and Email are required.");
         return;
     }
@@ -41,10 +55,19 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
         alert("Credits must be a non-negative number.");
         return;
     }
-    // Password is optional when editing
-    const dataToSave = { ...formData, credits: creditsNum };
-    if (!dataToSave.password) {
-        delete dataToSave.password; // Don't send empty password
+    
+    const dataToSave = { 
+      id: formData.id,
+      firstName: formData.first_name, 
+      lastName: formData.last_name,
+      email: formData.email,
+      dob: formData.dob,
+      userType: formData.user_type,
+      credits: creditsNum,
+    };
+
+    if (formData.password) {
+        dataToSave.password = formData.password;
     }
 
     onSave(dataToSave);
@@ -54,12 +77,12 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="edit-firstName">First Name</Label>
-            <Input id="edit-firstName" name="firstName" value={formData.firstName} onChange={handleChange} required />
+            <Label htmlFor="edit-first_name">First Name</Label>
+            <Input id="edit-first_name" name="first_name" value={formData.first_name} onChange={handleChange} required />
           </div>
           <div>
-            <Label htmlFor="edit-lastName">Last Name</Label>
-            <Input id="edit-lastName" name="lastName" value={formData.lastName} onChange={handleChange} required />
+            <Label htmlFor="edit-last_name">Last Name</Label>
+            <Input id="edit-last_name" name="last_name" value={formData.last_name} onChange={handleChange} required />
           </div>
           <div>
             <Label htmlFor="edit-email">Email</Label>
@@ -71,9 +94,9 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
             <Input id="edit-dob" name="dob" type="date" value={formData.dob} onChange={handleChange} />
           </div>
            <div>
-            <Label htmlFor="edit-userType">User Type</Label>
-             <Select name="userType" value={formData.userType} onValueChange={handleSelectChange}>
-                <SelectTrigger id="edit-userType">
+            <Label htmlFor="edit-user_type">User Type</Label>
+             <Select name="user_type" value={formData.user_type} onValueChange={handleSelectChange}>
+                <SelectTrigger id="edit-user_type">
                     <SelectValue placeholder="Select type..." />
                 </SelectTrigger>
                 <SelectContent>

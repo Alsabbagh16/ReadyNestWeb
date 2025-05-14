@@ -1,0 +1,64 @@
+
+// Helper functions for localStorage data management
+
+// Save booking to localStorage
+export const saveBooking = (booking) => {
+  const bookings = getBookings();
+  booking.id = Date.now().toString(); // Generate a unique ID
+  booking.status = "scheduled";
+  bookings.push(booking);
+  localStorage.setItem("cleanSweepBookings", JSON.stringify(bookings));
+  return booking;
+};
+
+// Get all bookings from localStorage
+export const getBookings = () => {
+  const bookings = localStorage.getItem("cleanSweepBookings");
+  return bookings ? JSON.parse(bookings) : [];
+};
+
+// Get a specific booking by ID
+export const getBookingById = (id) => {
+  const bookings = getBookings();
+  return bookings.find(booking => booking.id === id);
+};
+
+// Update a booking
+export const updateBooking = (id, updatedData) => {
+  const bookings = getBookings();
+  const index = bookings.findIndex(booking => booking.id === id);
+  
+  if (index !== -1) {
+    bookings[index] = { ...bookings[index], ...updatedData };
+    localStorage.setItem("cleanSweepBookings", JSON.stringify(bookings));
+    return bookings[index];
+  }
+  
+  return null;
+};
+
+// Cancel a booking
+export const cancelBooking = (id) => {
+  const bookings = getBookings();
+  const index = bookings.findIndex(booking => booking.id === id);
+  
+  if (index !== -1) {
+    bookings[index].status = "cancelled";
+    localStorage.setItem("cleanSweepBookings", JSON.stringify(bookings));
+    return true;
+  }
+  
+  return false;
+};
+
+// Save user profile to localStorage
+export const saveUserProfile = (profile) => {
+  localStorage.setItem("cleanSweepUserProfile", JSON.stringify(profile));
+  return profile;
+};
+
+// Get user profile from localStorage
+export const getUserProfile = () => {
+  const profile = localStorage.getItem("cleanSweepUserProfile");
+  return profile ? JSON.parse(profile) : null;
+};
