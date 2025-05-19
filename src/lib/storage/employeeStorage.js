@@ -63,6 +63,7 @@ export const addEmployee = async (employeeData) => {
         passport_expiry_date: employeeData.passportExpiryDate || null,
         date_of_birth: employeeData.dateOfBirth || null,
         hire_date: employeeData.hireDate || null,
+        visa_number: employeeData.visaNumber,
         visa_issuance_date: employeeData.visaIssuanceDate || null,
         visa_expiry_date: employeeData.visaExpiryDate || null,
         photo_url: employeeData.photoUrl,
@@ -123,20 +124,22 @@ export const updateEmployee = async (updatedData) => {
     passport_expiry_date: updatedData.passportExpiryDate || updatedData.passport_expiry_date || null,
     date_of_birth: updatedData.dateOfBirth || updatedData.date_of_birth || null,
     hire_date: updatedData.hireDate || updatedData.hire_date || null,
+    visa_number: updatedData.visaNumber || updatedData.visa_number,
     visa_issuance_date: updatedData.visaIssuanceDate || updatedData.visa_issuance_date || null,
     visa_expiry_date: updatedData.visaExpiryDate || updatedData.visa_expiry_date || null,
+    photo_url: updatedData.photoUrl || updatedData.photo_url,
     updated_at: new Date().toISOString(),
   };
   
   const validColumns = [
     'email', 'full_name', 'mobile', 'address', 'position', 'origin', 'sex', 
     'passport_number', 'passport_issue_date', 'passport_expiry_date', 
-    'date_of_birth', 'hire_date', 'visa_issuance_date', 'visa_expiry_date', 
+    'date_of_birth', 'hire_date', 'visa_number', 'visa_issuance_date', 'visa_expiry_date', 
     'photo_url', 'role', 'updated_at'
   ];
 
   const filteredPayload = Object.keys(payloadToUpdate)
-    .filter(key => validColumns.includes(key))
+    .filter(key => validColumns.includes(key) && payloadToUpdate[key] !== undefined) // Ensure undefined values are not sent
     .reduce((obj, key) => {
       obj[key] = payloadToUpdate[key];
       return obj;
@@ -219,8 +222,39 @@ export const findEmployeeById = async (id) => {
     if (error.message.includes("infinite recursion")) {
         throw new Error("Failed to find employee due to a Supabase RLS policy issue (infinite recursion). Please check your 'employees' table policies.");
     }
+    // Do not throw error here, return null to allow UI to handle "not found"
     return null;
   }
   return data;
+};
+
+export const updateEmployeePhotoUrl = async (employeeId, photoUrl) => {
+    if (!employeeId || !photoUrl) {
+        throw new Error("Employee ID and Photo URL are required.");
+    }
+    const { data, error } = await supabase
+        .from('employees')
+        .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
+        .eq('id', employeeId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating employee photo URL:', error);
+        throw error;
+    }
+    return data;
+};
+
+// Conceptual: In a real app, this would likely involve a separate 'employee_documents' table
+export const addEmployeeDocumentMetadata = async (employeeId, documentInfo) => {
+    // documentInfo could be { name: 'passport.pdf', url: '...', type: 'passport', uploaded_at: ... }
+    // This is a placeholder. You'd insert into your documents table.
+    console.log('Conceptual: Adding document metadata for employee', employeeId, documentInfo);
+    // Example:
+    // const { data, error } = await supabase.from('employee_documents').insert({ employee_id: employeeId, ...documentInfo });
+    // if (error) throw error;
+    // return data;
+    return Promise.resolve({ message: "Document metadata conceptually added." });
 };
   

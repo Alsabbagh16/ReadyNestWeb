@@ -11,6 +11,9 @@ import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import AdminCreateServicePage from "@/pages/AdminCreateServicePage"; 
+import AdminCreateAddonPage from "@/pages/AdminCreateAddonPage";
+import AdminEditServicePage from "@/pages/AdminEditServicePage";
 import LoadingLog from "@/components/LoadingLog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
@@ -67,6 +70,30 @@ function App() {
             element={
               <ProtectedAdminRoute>
                 <AdminDashboardPage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin-dashboard/create-service"
+            element={
+              <ProtectedAdminRoute>
+                <AdminCreateServicePage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin-dashboard/edit-service/:productId"
+            element={
+              <ProtectedAdminRoute>
+                <AdminEditServicePage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin-dashboard/create-addon"
+            element={
+              <ProtectedAdminRoute>
+                <AdminCreateAddonPage />
               </ProtectedAdminRoute>
             }
           />

@@ -45,9 +45,10 @@ export const useUserAddresses = (userId) => {
     }
     setLoadingAddresses(true);
     try {
+      const newAddressId = crypto.randomUUID(); // Generate UUID for the new address
       const { data, error } = await supabase
         .from('addresses')
-        .insert([{ ...addressData, user_id: userId }])
+        .insert([{ ...addressData, user_id: userId, id: newAddressId }]) // Include the generated id
         .select()
         .single();
       if (error) throw error;
@@ -65,9 +66,11 @@ export const useUserAddresses = (userId) => {
   const updateAddress = useCallback(async (addressId, addressData) => {
     setLoadingAddresses(true);
     try {
+      // Remove id from addressData if it exists, as it shouldn't be updated directly
+      const { id, ...updateData } = addressData;
       const { data, error } = await supabase
         .from('addresses')
-        .update(addressData)
+        .update(updateData)
         .eq('id', addressId)
         .eq('user_id', userId) // Ensure user owns the address
         .select()
@@ -124,4 +127,3 @@ export const useUserAddresses = (userId) => {
     resetAddresses,
   };
 };
-  

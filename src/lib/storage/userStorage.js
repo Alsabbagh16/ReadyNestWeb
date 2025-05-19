@@ -8,14 +8,16 @@ export const getAllUsers = async () => {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching all users:', error);
-    return [];
+    console.error('Error fetching all users (getAllUsers):', error);
+    throw error; 
   }
+  console.log('[userStorage] getAllUsers fetched:', data);
   return data.map(u => ({
     ...u,
     createdAt: u.created_at ? new Date(u.created_at) : null,
-    dob: u.dob ? new Date(u.dob) : null,
-    name: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+    dob: u.dob ? u.dob : null, 
+    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'Unnamed User',
+    userType: u.user_type || 'Personal',
   }));
 };
 
@@ -37,9 +39,10 @@ export const findUserById = async (userId) => {
   return data ? { 
     ...data, 
     createdAt: data.created_at ? new Date(data.created_at) : null,
-    dob: data.dob ? new Date(data.dob) : null,
-    name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
-    notes: data.user_notes && data.user_notes.length > 0 ? data.user_notes[0].notes : ''
+    dob: data.dob ? data.dob : null,
+    name: `${data.first_name || ''} ${data.last_name || ''}`.trim() || data.email || 'Unnamed User',
+    notes: data.user_notes && data.user_notes.length > 0 ? data.user_notes[0].notes : '',
+    userType: data.user_type || 'Personal',
   } : null;
 };
 
@@ -62,17 +65,35 @@ export const findUserByEmail = async (email) => {
   return data ? { 
     ...data, 
     createdAt: data.created_at ? new Date(data.created_at) : null,
-    dob: data.dob ? new Date(data.dob) : null,
-    name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
-    notes: data.user_notes && data.user_notes.length > 0 ? data.user_notes[0].notes : ''
+    dob: data.dob ? data.dob : null,
+    name: `${data.first_name || ''} ${data.last_name || ''}`.trim() || data.email || 'Unnamed User',
+    notes: data.user_notes && data.user_notes.length > 0 ? data.user_notes[0].notes : '',
+    userType: data.user_type || 'Personal',
   } : null;
 };
 
 
 export const adminUpdateUserProfile = async (userId, updatedData) => {
+  const { firstName, lastName, userType, ...restOfData } = updatedData;
+  
+  const dataToUpdate = {
+    ...restOfData,
+    first_name: firstName,
+    last_name: lastName,
+    user_type: userType,
+    updated_at: new Date().toISOString()
+  };
+
+  if (dataToUpdate.password === '' || dataToUpdate.password === null || dataToUpdate.password === undefined) {
+    delete dataToUpdate.password;
+  }
+  
+  delete dataToUpdate.name; 
+  delete dataToUpdate.createdAt;
+
   const { data, error } = await supabase
     .from('profiles')
-    .update({ ...updatedData, updated_at: new Date().toISOString() })
+    .update(dataToUpdate)
     .eq('id', userId)
     .select()
     .single();

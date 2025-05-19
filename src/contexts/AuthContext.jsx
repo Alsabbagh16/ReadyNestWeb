@@ -7,18 +7,19 @@ import { useUserAddresses } from '@/hooks/useUserAddresses';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+const useAuthentication = () => {
   const { 
     user, 
     authContextLoading: coreAuthLoading, 
     login: coreLogin, 
     signup: coreSignup, 
     logout: coreLogout,
-    _setUserRawCore
+    _setUserRawCore 
   } = useAuthCore();
-  
-  const { toast } = useToast();
+  return { user, coreAuthLoading, coreLogin, coreSignup, coreLogout, _setUserRawCore };
+};
 
+const useProfileManagement = (userId, initialProfile, initialCredits) => {
   const { 
     profile, 
     credits,
@@ -29,8 +30,11 @@ export const AuthProvider = ({ children }) => {
     resetProfile: resetUserProfileHook,
     setProfile: setUserProfileHook,
     setCredits: setUserCreditsHook,
-  } = useUserProfile(user?.id);
+  } = useUserProfile(userId, initialProfile, initialCredits);
+  return { profile, credits, loadingProfile, fetchUserProfile, updateUserProfile, updateCredits, resetUserProfileHook, setUserProfileHook, setUserCreditsHook };
+};
 
+const useAddressManagement = (userId) => {
   const { 
     addresses, 
     loadingAddresses, 
@@ -40,41 +44,47 @@ export const AuthProvider = ({ children }) => {
     deleteAddressHook,
     resetAddresses: resetUserAddressesHook,
     setAddresses: setUserAddressesHook,
-  } = useUserAddresses(user?.id);
+  } = useUserAddresses(userId);
+  return { addresses, loadingAddresses, fetchUserAddresses, addAddressHook, updateAddressHook, deleteAddressHook, resetUserAddressesHook, setUserAddressesHook };
+};
 
+
+export const AuthProvider = ({ children }) => {
+  const { user, coreAuthLoading, coreLogin, coreSignup, coreLogout, _setUserRawCore } = useAuthentication();
+  const { profile, credits, loadingProfile, fetchUserProfile, updateUserProfile, updateCredits, resetUserProfileHook, setUserProfileHook, setUserCreditsHook } = useProfileManagement(user?.id, null, 0);
+  const { addresses, loadingAddresses, fetchUserAddresses, addAddressHook, updateAddressHook, deleteAddressHook, resetUserAddressesHook, setUserAddressesHook } = useAddressManagement(user?.id);
+  
+  const { toast } = useToast();
   const [isOverallLoading, setIsOverallLoading] = useState(true);
 
   const resetUserSpecificData = useCallback(() => {
-    console.log('[AuthContext] resetUserSpecificData called.');
     resetUserProfileHook();
     resetUserAddressesHook();
   }, [resetUserProfileHook, resetUserAddressesHook]);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      console.log(`[AuthContext] Profile Deletion/Missing Check Effect. User: ${user ? user.id : 'null'}, CoreAuthLoading: ${coreAuthLoading}, LoadingProfile: ${loadingProfile}, Profile: ${profile ? 'exists' : 'null'}`);
-      if (user && !coreAuthLoading && !loadingProfile && !profile) {
-        console.warn('[AuthContext] User exists but profile is missing after loading. Logging out.');
-        toast({
-          title: "Profile Not Found",
-          description: "Your user profile could not be found. Logging you out.",
-          variant: "destructive",
-        });
-        coreLogout({ showToast: false }); 
-        resetUserSpecificData(); 
-        if (_setUserRawCore) {
-          _setUserRawCore(null); 
+    let timeoutId;
+    if (user && user.email_confirmed_at && !coreAuthLoading && !loadingProfile) {
+      timeoutId = setTimeout(() => {
+        if (!profile) {
+          toast({
+            title: "Profile Issue",
+            description: "Your user profile could not be loaded. Logging you out. Please log in again or contact support.",
+            variant: "destructive",
+          });
+          coreLogout({ showToast: false, messageContext: "profile_missing_auto_logout" }); 
+          resetUserSpecificData(); 
+          if (_setUserRawCore) {
+            _setUserRawCore(null); 
+          }
         }
-      }
-    }, 1000);
-
+      }, 1000);
+    }
     return () => clearTimeout(timeoutId);
   }, [user, profile, coreAuthLoading, loadingProfile, coreLogout, toast, resetUserSpecificData, _setUserRawCore]);
   
   useEffect(() => {
-     console.log(`[AuthContext] User Null Check Effect. User: ${user ? user.id : 'null'}, CoreAuthLoading: ${coreAuthLoading}`);
-    if (!user && !coreAuthLoading) { 
-        console.log('[AuthContext] User is null and coreAuthLoading is false. Calling resetUserSpecificData.');
+    if (user === null && !coreAuthLoading) { 
         resetUserSpecificData();
     }
   }, [user, coreAuthLoading, resetUserSpecificData]);
@@ -87,23 +97,9 @@ export const AuthProvider = ({ children }) => {
       (user !== null && profile !== null && loadingAddresses);
     
     if (isOverallLoading !== newOverallLoadingState) {
-        console.log(`[AuthContext] OverallLoading changed from ${isOverallLoading} to ${newOverallLoadingState}. 
-        Details: user: ${user === undefined ? 'undefined' : (user === null ? 'null' : 'exists')}, 
-        coreAuthLoading: ${coreAuthLoading}, 
-        loadingProfile: ${loadingProfile}, 
-        loadingAddresses: ${loadingAddresses}`);
         setIsOverallLoading(newOverallLoadingState);
     }
   }, [user, coreAuthLoading, loadingProfile, profile, loadingAddresses, isOverallLoading]);
-
-
-  console.log(`[AuthContext] Render/Re-render. 
-    User: ${user === undefined ? 'undefined' : (user === null ? 'null' : user.id)}, 
-    Profile: ${profile === undefined ? 'undefined' : (profile === null ? 'null' : profile.id)}, 
-    CoreAuthLoading: ${coreAuthLoading}, 
-    LoadingProfile: ${loadingProfile}, 
-    LoadingAddresses: ${loadingAddresses}, 
-    OverallLoading: ${isOverallLoading}`);
 
   const contextValue = useMemo(() => ({
     user, 

@@ -15,10 +15,7 @@ export const useAuthCore = () => {
     if (error.message && (error.message.includes("Invalid Refresh Token") || error.message.includes("Refresh Token Not Found")) || (error.code && error.code === 'refresh_token_not_found')) {
       toast({ title: "Session Expired", description: "Your session has expired. Please log in again.", variant: "destructive" });
       setUser(null);
-    } else if (error.message && error.message.includes("Email link is invalid or has expired")) {
-      toast({ title: "Verification Link Error", description: "The email verification link is invalid or has expired. Please try again or request a new link.", variant: "destructive" });
-    }
-    else {
+    } else {
       toast({ title: `Auth Error (${contextMessage})`, description: error.message, variant: "destructive" });
       setUser(null);
     }
@@ -34,12 +31,9 @@ export const useAuthCore = () => {
       } else {
         const sessionUser = session?.user ?? null;
         setUser(sessionUser);
-        if (sessionUser && !sessionUser.email_confirmed_at) {
-          console.warn("[AuthCore] User session exists but email not confirmed:", sessionUser.email);
-        }
       }
     }).catch(error => {
-      handleAuthError(error, "getSession catch");
+      handleAuthError(error, "getSession");
     }).finally(() => {
       removeLoadingMessage(initialSessionMsgId);
       setAuthContextLoading(false);
@@ -55,53 +49,7 @@ export const useAuthCore = () => {
         
         if (session?.error) {
           handleAuthError(session.error, "onAuthStateChange");
-        } else if (_event === "SIGNED_IN" && sessionUser) {
-          console.log("[AuthCore] User SIGNED_IN:", sessionUser.id, sessionUser.email);
-          if (!sessionUser.email_confirmed_at) {
-            console.warn("[AuthCore] User signed in but email not confirmed:", sessionUser.email);
-          }
-          
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, email')
-            .eq('id', sessionUser.id)
-            .maybeSingle();
-
-          if (profileError) {
-            console.error("[AuthCore] Error fetching profile after OAuth sign-in:", profileError);
-          } else if (!profile && sessionUser.email) {
-            console.log("[AuthCore] No profile found for OAuth user, creating one:", sessionUser.id);
-            const userMetadata = sessionUser.user_metadata;
-            const newProfileData = {
-              id: sessionUser.id,
-              email: sessionUser.email.toLowerCase(),
-              first_name: userMetadata?.first_name || userMetadata?.full_name?.split(' ')[0] || sessionUser.email.split('@')[0],
-              last_name: userMetadata?.last_name || userMetadata?.full_name?.split(' ').slice(1).join(' ') || '',
-              user_type: 'home_owner', 
-              credits: 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-            const { error: insertError } = await supabase.from('profiles').insert(newProfileData);
-            if (insertError) {
-              console.error("[AuthCore] Error creating profile for OAuth user:", insertError);
-              toast({ title: "Profile Creation Failed", description: "Could not create your user profile after Google Sign-In.", variant: "destructive" });
-            } else {
-              console.log("[AuthCore] Profile created successfully for OAuth user:", newProfileData.id);
-            }
-          } else if (profile) {
-             console.log("[AuthCore] Profile found for OAuth user:", profile.id);
-          }
-        } else if (_event === "SIGNED_OUT") {
-          console.log("[AuthCore] User SIGNED_OUT");
-        } else if (_event === "USER_UPDATED" && sessionUser) {
-          console.log("[AuthCore] User USER_UPDATED:", sessionUser.id);
-        } else if (_event === "PASSWORD_RECOVERY") {
-          console.log("[AuthCore] Password recovery event");
-        } else if (_event === "TOKEN_REFRESHED") {
-          console.log("[AuthCore] Token refreshed");
         }
-
 
         removeLoadingMessage(authChangeMsgId);
         setAuthContextLoading(false);
@@ -111,7 +59,7 @@ export const useAuthCore = () => {
     return () => {
       authListener?.unsubscribe();
     };
-  }, [addLoadingMessage, removeLoadingMessage, handleAuthError, toast]);
+  }, [addLoadingMessage, removeLoadingMessage, handleAuthError]);
 
   const login = useCallback(async (email, password) => {
     setAuthContextLoading(true);
@@ -120,16 +68,12 @@ export const useAuthCore = () => {
       const { data, error } = await supabase.auth.signInWithPassword({ 
         email, 
         password,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
       });
       
       if (error) throw error;
-      
-      if (data.user && !data.user.email_confirmed_at) {
-        toast({ title: "Email Not Verified", description: "Please check your email to verify your account before logging in.", variant: "destructive" });
-        await supabase.auth.signOut(); 
-        setUser(null);
-        throw new Error("Email not verified");
-      }
       
       setUser(data.user);
       toast({ title: "Success", description: "Welcome back!" });
@@ -180,57 +124,52 @@ export const useAuthCore = () => {
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        await supabase.auth.admin.deleteUser(newUser.id);
-        throw new Error("Failed to create user profile. Your auth account might have been created, please try logging in or contact support if issue persists.");
+        throw new Error(`Failed to create user profile: ${profileError.message}`);
       }
-
+      
       setUser(newUser);
       toast({
         title: "Account Created",
-        description: "Your account has been created successfully! Please check your email to verify your account.",
+        description: "Your account has been created! Please check your email to verify your account.",
       });
 
     } catch (error) {
-      console.error('Registration process error:', error);
-      toast({
-        title: "Registration Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-      throw error;
+      handleAuthError(error, "signup");
+      throw error; 
     } finally {
       removeLoadingMessage(signupMsgId);
       setAuthContextLoading(false);
     }
-  }, [toast, addLoadingMessage, removeLoadingMessage]);
+  }, [toast, addLoadingMessage, removeLoadingMessage, handleAuthError]);
 
-  const logout = useCallback(async (options = { showToast: true }) => {
+  const coreLogout = useCallback(async (options = { showToast: true, messageContext: "logout" }) => {
     setAuthContextLoading(true);
-    const logoutMsgId = addLoadingMessage("Logging out...");
+    const logoutMsgId = addLoadingMessage(`Logging out... (${options.messageContext})`);
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       if (options.showToast) {
-        toast({ title: "Success", description: "You have been logged out." });
+        toast({ title: "Logged Out", description: "You have been successfully logged out." });
       }
     } catch (error) {
+      console.error(`[AuthCore] Logout error (${options.messageContext}):`, error);
       if (options.showToast) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+        toast({ title: "Logout Error", description: error.message, variant: "destructive" });
       }
     } finally {
-      setUser(null);
+      setUser(null); 
       removeLoadingMessage(logoutMsgId);
       setAuthContextLoading(false);
     }
   }, [toast, addLoadingMessage, removeLoadingMessage]);
-
+  
   return {
     user,
     authContextLoading,
     login,
     signup,
-    logout,
-    _setUserRawCore: setUser,
+    logout: coreLogout,
+    _setUserRawCore: setUser, 
   };
 };
   
