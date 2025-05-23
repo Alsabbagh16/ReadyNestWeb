@@ -1,22 +1,23 @@
 
 import React from "react";
 import Hero from "@/components/Hero";
-import Services from "@/components/Services";
+import OurValues from "@/components/OurValues"; 
 import Pricing from "@/components/Pricing";
 import Testimonials from "@/components/Testimonials";
 import FAQ from "@/components/FAQ";
 
 const HomePage = () => {
   return (
-    <>
-      <Hero />
-      <Services />
-      <Pricing />
-      <Testimonials />
-      <FAQ />
-    </>
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow">
+        <Hero />
+        <OurValues /> 
+        <Pricing />
+        <Testimonials />
+        <FAQ />
+      </main>
+    </div>
   );
 };
 
 export default HomePage;
-  

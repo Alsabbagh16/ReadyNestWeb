@@ -13,6 +13,7 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
     first_name: '',
     last_name: '',
     email: '',
+    phone: '', // Added phone
     dob: '',
     user_type: 'Personal',
     credits: 0,
@@ -27,6 +28,7 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         email: user.email || '',
+        phone: user.phone || '', // Set phone from user data
         dob: user.dob ? (user.dob instanceof Date ? user.dob.toISOString().split('T')[0] : user.dob.split('T')[0]) : '',
         user_type: user.user_type || 'Personal',
         credits: user.credits || 0,
@@ -58,11 +60,12 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
     
     const dataToSave = { 
       id: formData.id,
-      firstName: formData.first_name, 
-      lastName: formData.last_name,
+      first_name: formData.first_name, 
+      last_name: formData.last_name,
       email: formData.email,
+      phone: formData.phone, // Include phone in data to save
       dob: formData.dob,
-      userType: formData.user_type,
+      user_type: formData.user_type,
       credits: creditsNum,
     };
 
@@ -89,6 +92,10 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
             <Input id="edit-email" name="email" type="email" value={formData.email} onChange={handleChange} required disabled={!!user} />
              {user && <p className="text-xs text-gray-500 mt-1">Email cannot be changed.</p>}
           </div>
+          <div>
+            <Label htmlFor="edit-phone">Phone</Label>
+            <Input id="edit-phone" name="phone" type="tel" value={formData.phone} onChange={handleChange} />
+          </div>
            <div>
             <Label htmlFor="edit-dob">Date of Birth</Label>
             <Input id="edit-dob" name="dob" type="date" value={formData.dob} onChange={handleChange} />
@@ -102,6 +109,10 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
                 <SelectContent>
                     <SelectItem value="Personal">Personal</SelectItem>
                     <SelectItem value="Business">Business</SelectItem>
+                    <SelectItem value="home_owner">Home Owner</SelectItem>
+                    <SelectItem value="property_manager">Property Manager</SelectItem>
+                    <SelectItem value="vacation_rental_owner">Vacation Rental Owner</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
             </Select>
           </div>
@@ -140,4 +151,3 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
 };
 
 export default EditUserForm;
-  

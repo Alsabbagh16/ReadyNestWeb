@@ -5,7 +5,7 @@ import { getAllUsers, adminUpdateUserProfile, deleteUser } from '@/lib/storage/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Edit, Trash2, ShieldAlert } from 'lucide-react';
+import { Edit, Trash2, ShieldAlert, Phone } from 'lucide-react'; // Added Phone
 import { format } from 'date-fns';
 import EditUserForm from '@/components/AdminDashboard/EditUserForm';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -101,6 +101,7 @@ const RegisteredAccountsTab = () => {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>User Type</TableHead>
                 <TableHead>Credits</TableHead>
                 <TableHead>Joined</TableHead>
@@ -116,6 +117,10 @@ const RegisteredAccountsTab = () => {
                      </Link>
                   </TableCell>
                   <TableCell>{user.email}</TableCell>
+                  <TableCell className="flex items-center">
+                    {user.phone ? <Phone className="h-3 w-3 mr-1 text-muted-foreground" /> : null}
+                    {user.phone || 'N/A'}
+                  </TableCell>
                   <TableCell>{user.user_type || 'Personal'}</TableCell>
                   <TableCell>{user.credits || 0}</TableCell>
                   <TableCell>{user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}</TableCell>
@@ -169,4 +174,3 @@ const RegisteredAccountsTab = () => {
 };
 
 export default RegisteredAccountsTab;
-  

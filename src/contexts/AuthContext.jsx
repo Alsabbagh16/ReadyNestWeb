@@ -7,7 +7,7 @@ import { useUserAddresses } from '@/hooks/useUserAddresses';
 
 const AuthContext = createContext(null);
 
-const useAuthentication = () => {
+const useAuthenticationInternal = () => {
   const { 
     user, 
     authContextLoading: coreAuthLoading, 
@@ -19,7 +19,7 @@ const useAuthentication = () => {
   return { user, coreAuthLoading, coreLogin, coreSignup, coreLogout, _setUserRawCore };
 };
 
-const useProfileManagement = (userId, initialProfile, initialCredits) => {
+const useProfileManagementInternal = (userId, initialProfile, initialCredits) => {
   const { 
     profile, 
     credits,
@@ -34,7 +34,7 @@ const useProfileManagement = (userId, initialProfile, initialCredits) => {
   return { profile, credits, loadingProfile, fetchUserProfile, updateUserProfile, updateCredits, resetUserProfileHook, setUserProfileHook, setUserCreditsHook };
 };
 
-const useAddressManagement = (userId) => {
+const useAddressManagementInternal = (userId) => {
   const { 
     addresses, 
     loadingAddresses, 
@@ -50,9 +50,9 @@ const useAddressManagement = (userId) => {
 
 
 export const AuthProvider = ({ children }) => {
-  const { user, coreAuthLoading, coreLogin, coreSignup, coreLogout, _setUserRawCore } = useAuthentication();
-  const { profile, credits, loadingProfile, fetchUserProfile, updateUserProfile, updateCredits, resetUserProfileHook, setUserProfileHook, setUserCreditsHook } = useProfileManagement(user?.id, null, 0);
-  const { addresses, loadingAddresses, fetchUserAddresses, addAddressHook, updateAddressHook, deleteAddressHook, resetUserAddressesHook, setUserAddressesHook } = useAddressManagement(user?.id);
+  const { user, coreAuthLoading, coreLogin, coreSignup, coreLogout, _setUserRawCore } = useAuthenticationInternal();
+  const { profile, credits, loadingProfile, fetchUserProfile, updateUserProfile, updateCredits, resetUserProfileHook, setUserProfileHook, setUserCreditsHook } = useProfileManagementInternal(user?.id, null, 0);
+  const { addresses, loadingAddresses, fetchUserAddresses, addAddressHook, updateAddressHook, deleteAddressHook, resetUserAddressesHook, setUserAddressesHook } = useAddressManagementInternal(user?.id);
   
   const { toast } = useToast();
   const [isOverallLoading, setIsOverallLoading] = useState(true);

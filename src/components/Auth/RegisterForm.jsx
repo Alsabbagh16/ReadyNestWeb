@@ -13,6 +13,7 @@ const RegisterForm = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(''); // Added phone state
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState('');
@@ -49,9 +50,10 @@ const RegisterForm = () => {
       await signup(email, password, {
         first_name: firstName,
         last_name: lastName,
+        phone: phone, // Pass phone to signup
         dob: dob,
         user_type: userType,
-        credits: 0, // Default credits on signup
+        credits: 0, 
       });
        const searchParams = new URLSearchParams(location.search);
       const redirectPath = searchParams.get('redirect');
@@ -100,6 +102,18 @@ const RegisterForm = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          className="dark:bg-slate-800 dark:text-white dark:border-slate-700"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="register-phone">Phone Number</Label>
+        <Input
+          id="register-phone"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="e.g., +1234567890"
           className="dark:bg-slate-800 dark:text-white dark:border-slate-700"
         />
       </div>

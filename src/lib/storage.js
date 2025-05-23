@@ -6,4 +6,4 @@ export * from './storage/userStorage';
 export * from './storage/bookingStorage';
 export * from './storage/employeeStorage';
 export * from './storage/adminStorage';
-  
+export * from './storage/jobStorage'; // Added jobStorage

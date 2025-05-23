@@ -13,11 +13,8 @@ import { motion } from 'framer-motion';
 import { fetchCategories, createCategory as apiCreateCategory, fetchAddonTemplates } from '@/lib/storage/productStorage';
 
 const productTypeOptions = [
-  { value: "standard_cleaning", label: "Standard Cleaning" },
-  { value: "deep_cleaning", label: "Deep Cleaning" },
-  { value: "move_in_out", label: "Move-in/Move-out" },
-  { value: "addon_service", label: "Add-on Service" },
-  { value: "specialized", label: "Specialized Cleaning" },
+  { value: "one_time_service", label: "One Time Service" },
+  { value: "recurring_service", label: "Recurring Service" },
 ];
 
 const propertyTypeOptions = [
@@ -344,4 +341,3 @@ const ServiceForm = ({ initialData, onSubmit, isLoading, submitButtonText = "Sub
 };
 
 export default ServiceForm;
-  

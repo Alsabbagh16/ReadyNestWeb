@@ -1,158 +1,225 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { getBookings } from '@/lib/storage/bookingStorage';
-import { services, personalSubscriptionPlans, businessSubscriptionPlans } from '@/lib/services';
+import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Download, Edit, PlusCircle, ExternalLink, Briefcase, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
-// Helper function to determine Badge variant based on status
+const formatDateSafe = (dateString, includeTime = false, placeholder = 'N/A') => {
+  try {
+    if (!dateString || isNaN(new Date(dateString).getTime())) return placeholder;
+    return format(new Date(dateString), includeTime ? 'MMM d, yyyy, HH:mm' : 'MMM d, yyyy');
+  } catch (error) {
+    console.error("Error formatting date:", dateString, error);
+    return 'Invalid Date';
+  }
+};
+
 const getStatusBadgeVariant = (status) => {
     switch (status?.toLowerCase()) {
         case 'completed': return 'success';
-        case 'in-progress': return 'default';
-        case 'scheduled': return 'outline';
-        case 'pending': return 'secondary';
-        case 'cancelled': return 'destructive';
-        case 'quote requested': return 'secondary';
-        case 'refunded': return 'destructive'; // Added refunded variant
+        case 'pending assignment': case 'scheduled': return 'default';
+        case 'assigned': case 'in progress': return 'outline';
+        case 'cancelled': case 'on hold': case 'failed': return 'destructive';
         default: return 'secondary';
     }
 };
 
-// Helper function to format date or return 'N/A'
-const formatDateSafe = (dateString) => {
-    try {
-        if (!dateString || isNaN(new Date(dateString).getTime())) return 'N/A';
-        return format(new Date(dateString), 'MMM d, yyyy HH:mm');
-    } catch (error) {
-        console.error("Error formatting date:", dateString, error);
-        return 'Invalid Date';
-    }
+const JobRow = ({ job, canViewAllJobs, canEditJobs }) => {
+    return (
+      <TableRow key={job.job_ref_id}>
+        <TableCell className="font-mono">
+           <Link to={`/admin-dashboard/job/${job.job_ref_id}`} className="text-primary hover:underline flex items-center">
+                {job.job_ref_id} <ExternalLink className="h-3 w-3 ml-1"/>
+            </Link>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">{formatDateSafe(job.created_at, true)}</TableCell>
+        <TableCell>
+          <div>{job.user_name || 'N/A'}</div>
+          <div className="text-xs text-muted-foreground">{job.user_email || 'N/A'}</div>
+          <div className="text-xs text-muted-foreground flex items-center">
+             <Phone className="h-3 w-3 mr-1" /> {job.user_phone || 'N/A'}
+          </div>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">{formatDateSafe(job.preferred_date)}</TableCell>
+        <TableCell>
+          {canViewAllJobs && job.purchase_ref_id ? (
+             <Link to={`/admin-dashboard/purchase/${job.purchase_ref_id}`} className="text-primary hover:underline flex items-center">
+                {job.purchase_ref_id} <ExternalLink className="h-3 w-3 ml-1"/>
+             </Link>
+          ) : (
+            job.purchase_ref_id || 'Direct Job'
+          )}
+        </TableCell>
+        <TableCell>
+          <Badge variant={getStatusBadgeVariant(job.status)} className="capitalize">
+            {job.status || 'Unknown'}
+          </Badge>
+        </TableCell>
+        <TableCell className="text-right space-x-1 whitespace-nowrap">
+          {canEditJobs && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/admin-dashboard/job/${job.job_ref_id}`}>
+                <Edit className="h-3 w-3 mr-1" /> Edit
+              </Link>
+            </Button>
+          )}
+        </TableCell>
+      </TableRow>
+    );
 };
 
 
 const RecentServicesTab = () => {
-  const [allBookings, setAllBookings] = useState([]);
-  const [filteredBookings, setFilteredBookings] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('newest'); // newest, completed, credit, regular, refunded, cancelled
+  const { toast } = useToast();
+  const { adminProfile } = useAdminAuth();
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+  const canCreateJobs = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+  const canEditJobs = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+  const canViewAllJobs = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
 
-  useEffect(() => {
-    filterBookings();
-  }, [activeFilter, allBookings]);
-
-  const fetchBookings = () => {
+  const fetchJobs = useCallback(async () => {
     setLoading(true);
-    setTimeout(() => {
-      const bookingsData = getBookings();
-      setAllBookings(bookingsData);
+    try {
+      let query = supabase
+        .from('jobs')
+        .select(`
+          job_ref_id,
+          created_at,
+          user_name,
+          user_email,
+          user_phone,
+          preferred_date,
+          status,
+          purchase_ref_id
+        `)
+        .order('created_at', { ascending: false });
+
+      if (adminProfile && (adminProfile.role === 'staff' || adminProfile.role === 'employee') && !canViewAllJobs) {
+        query = query.contains('assigned_employees_ids', [adminProfile.id]);
+      }
+      
+      const { data, error } = await query;
+
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      toast({ title: "Error", description: "Could not fetch jobs.", variant: "destructive" });
+    } finally {
       setLoading(false);
-    }, 300);
-  };
-
-  const filterBookings = () => {
-    let filtered = [...allBookings];
-
-    switch (activeFilter) {
-      case 'newest':
-        filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        break;
-      case 'completed':
-        filtered = filtered.filter(b => b.serviceStatus?.toLowerCase() === 'completed');
-        break;
-      case 'credit':
-        filtered = filtered.filter(b => b.paidWithCredits > 0);
-        break;
-      case 'regular': // Assuming regular means not paid with credits
-        filtered = filtered.filter(b => !(b.paidWithCredits > 0));
-        break;
-      case 'refunded':
-        filtered = filtered.filter(b => b.status?.toLowerCase() === 'refunded');
-        break;
-      case 'cancelled':
-        filtered = filtered.filter(b => b.serviceStatus?.toLowerCase() === 'cancelled' || b.status?.toLowerCase() === 'cancelled');
-        break;
-      default:
-         filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
-    setFilteredBookings(filtered);
-  };
+  }, [toast, adminProfile, canViewAllJobs]);
 
-  const getServiceName = (serviceId) => services.find(s => s.id === serviceId)?.name || 'N/A';
-  const getPlanName = (planId, planCategory) => {
-    if (!planId) return 'Single Cleaning';
-    const plans = planCategory === 'business' ? businessSubscriptionPlans : personalSubscriptionPlans;
-    return plans.find(p => p.id === planId)?.name || 'Unknown Plan';
+  useEffect(() => {
+    if (adminProfile) { // Ensure adminProfile is loaded before fetching
+        fetchJobs();
+    }
+  }, [fetchJobs, adminProfile]);
+
+  const handleExport = () => {
+    if (jobs.length === 0) {
+      toast({ title: "No Data", description: "There are no jobs to export." });
+      return;
+    }
+    const headers = ["Job Ref No.", "Created Date", "Customer Name", "Customer Email", "Customer Phone", "Preferred Date", "Status", "Purchase Ref No."];
+    const csvRows = [headers.join(",")];
+
+    jobs.forEach(job => {
+      const row = [
+        job.job_ref_id,
+        formatDateSafe(job.created_at, true),
+        `"${job.user_name || 'N/A'}"`,
+        job.user_email || 'N/A',
+        job.user_phone || 'N/A',
+        formatDateSafe(job.preferred_date),
+        job.status || 'N/A',
+        job.purchase_ref_id || 'Direct Job'
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `jobs_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Export Successful", description: "Jobs CSV file downloaded." });
   };
 
   if (loading) {
-    return <div className="p-6">Loading recent services...</div>;
+    return <div className="p-6 text-center">Loading jobs...</div>;
   }
 
   return (
-    <div className="p-6">
-      <Tabs value={activeFilter} onValueChange={setActiveFilter} className="mb-4">
-        <TabsList>
-          <TabsTrigger value="newest">Newest</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="credit">Paid (Credits)</TabsTrigger>
-          <TabsTrigger value="regular">Paid (Regular)</TabsTrigger>
-          <TabsTrigger value="refunded">Refunded</TabsTrigger>
-          <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {filteredBookings.length === 0 ? (
-        <p>No services found for the selected filter.</p>
-      ) : (
-        <div className="overflow-x-auto border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ref No.</TableHead>
-                <TableHead>Service Date</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Service/Plan</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>Service Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell>
-                     <Link to={`/admin-dashboard/service/${booking.id}`} className="text-blue-600 hover:underline font-mono">
-                        {booking.id.substring(0, 6)}
-                     </Link>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{booking.date ? `${formatDateSafe(booking.date)} ${booking.time || ''}` : 'N/A'}</TableCell>
-                  <TableCell>{booking.name} ({booking.email})</TableCell>
-                  <TableCell>{getPlanName(booking.planId, booking.planCategory)} - {getServiceName(booking.serviceId)}</TableCell>
-                  <TableCell>
-                      {booking.paidWithCredits > 0 ? `${booking.paidWithCredits} Credits` : `${booking.price?.toFixed(2) || '0.00'}`}
-                      {booking.status === 'refunded' && <span className="text-red-600 ml-1">(Refunded)</span>}
-                  </TableCell>
-                  <TableCell>
-                     <Badge variant={getStatusBadgeVariant(booking.serviceStatus)} className="capitalize">
-                        {booking.serviceStatus || 'Unknown'}
-                     </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+    <Card className="border-0 shadow-none rounded-none">
+      <CardHeader>
+        <CardTitle className="flex items-center text-2xl font-bold">
+          <Briefcase className="mr-3 h-7 w-7 text-primary" />
+          Scheduled Jobs
+        </CardTitle>
+        <CardDescription>View and manage all scheduled cleaning jobs.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex justify-end mb-4 space-x-2">
+           {canCreateJobs && (
+            <Button asChild size="sm">
+              <Link to="/admin-dashboard/job/create">
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Job
+              </Link>
+            </Button>
+          )}
+          <Button onClick={handleExport} size="sm" variant="outline" disabled={jobs.length === 0}>
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
         </div>
-      )}
-    </div>
+
+        {jobs.length === 0 ? (
+          <p className="text-center py-10 text-muted-foreground">
+            {canViewAllJobs ? "No jobs recorded yet." : "No jobs assigned to you or no jobs recorded yet."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Job Ref</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Preferred Date</TableHead>
+                  <TableHead>Purchase Ref</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <JobRow 
+                    key={job.job_ref_id} 
+                    job={job} 
+                    canViewAllJobs={canViewAllJobs}
+                    canEditJobs={canEditJobs}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
 export default RecentServicesTab;
-  

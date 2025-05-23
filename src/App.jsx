@@ -14,6 +14,7 @@ import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import AdminCreateServicePage from "@/pages/AdminCreateServicePage"; 
 import AdminCreateAddonPage from "@/pages/AdminCreateAddonPage";
 import AdminEditServicePage from "@/pages/AdminEditServicePage";
+import BookingConfirmationPage from "@/pages/BookingConfirmationPage"; // Import new page
 import LoadingLog from "@/components/LoadingLog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
@@ -104,6 +105,7 @@ function App() {
           <Route path="quote" element={<QuotePage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="auth" element={<AuthPage />} />
+          <Route path="booking-confirmation" element={<BookingConfirmationPage />} /> {/* Add new route */}
           <Route
             path="dashboard"
             element={
@@ -122,4 +124,3 @@ function App() {
 }
 
 export default App;
-  

@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { User, CreditCard, MapPin, History, LogOut } from 'lucide-react';
+import { User, CreditCard, MapPin, History, LogOut, CalendarCheck } from 'lucide-react';
 import AccountInfoTab from '@/components/Dashboard/AccountInfoTab';
 import CurrentPlanTab from '@/components/Dashboard/CurrentPlanTab';
 import PurchaseHistoryTab from '@/components/Dashboard/PurchaseHistoryTab';
 import AddressesTab from '@/components/Dashboard/AddressesTab';
+import ScheduledCleaningsTab from '@/components/Dashboard/ScheduledCleaningsTab'; 
 import { Button } from '@/components/ui/button';
 
 const DashboardPage = () => {
@@ -19,7 +20,6 @@ const DashboardPage = () => {
     if (!authLoading && (user || profile)) {
       setLocalLoading(false);
     } else if (!authLoading && !user && !profile) {
-       // If auth is done loading and there's no user/profile (e.g. after logout), also stop local loading
       setLocalLoading(false);
     }
   }, [authLoading, user, profile]);
@@ -28,6 +28,7 @@ const DashboardPage = () => {
   const tabs = [
     { id: 'account', label: 'Account Information', icon: User, component: <AccountInfoTab /> },
     { id: 'addresses', label: 'Saved Addresses', icon: MapPin, component: <AddressesTab /> },
+    { id: 'scheduled', label: 'Scheduled Cleanings', icon: CalendarCheck, component: <ScheduledCleaningsTab /> }, 
     { id: 'plan', label: 'Current Plan', icon: CreditCard, component: <CurrentPlanTab /> },
     { id: 'history', label: 'Purchase History', icon: History, component: <PurchaseHistoryTab /> },
   ];
@@ -64,9 +65,7 @@ const DashboardPage = () => {
           <div className="bg-white/50 backdrop-blur-sm rounded-lg p-4 border border-gray-100 shadow-sm mb-6">
              <h2 className="text-lg font-semibold mb-1">Welcome, {profile?.first_name || user?.email || 'User'}!</h2>
              <p className="text-sm text-gray-600 mb-3">{user?.email}</p>
-             <div className="bg-primary/10 text-primary font-bold text-center py-2 px-3 rounded text-sm">
-               Credits Available: {credits ?? 0}
-             </div>
+             {/* Credits availability field removed */}
           </div>
 
           <nav className="space-y-1 bg-white/50 backdrop-blur-sm rounded-lg p-3 border border-gray-100 shadow-sm">
@@ -111,4 +110,3 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
-  

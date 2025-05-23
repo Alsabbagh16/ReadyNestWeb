@@ -21,8 +21,8 @@ export const getBookings = async () => {
   }
   return data.map(b => ({
     ...b,
-    id: b.id, // Ensure id is the short one from DB
-    reference_number: b.reference_number || b.id, // Fallback for older data if any
+    id: b.id, 
+    reference_number: b.reference_number || b.id, 
     customerName: b.profile ? `${b.profile.first_name || ''} ${b.profile.last_name || ''}`.trim() : b.contact_name || 'N/A',
     customerEmail: b.profile ? b.profile.email : b.contact_email || 'N/A',
   }));
@@ -31,8 +31,8 @@ export const getBookings = async () => {
 export const addBooking = async (bookingData) => {
   const shortId = generateShortId();
   const bookingPayload = {
-    id: shortId, // Use generated shortId for the primary key
-    reference_number: shortId, // Also set reference_number explicitly
+    id: shortId, 
+    reference_number: shortId, 
     user_id: bookingData.userId || null,
     service_type: bookingData.service,
     service_details: {
@@ -50,7 +50,7 @@ export const addBooking = async (bookingData) => {
     price: bookingData.price,
     payment_method: bookingData.paymentMethod,
     paid_with_credits: bookingData.paidWithCredits || 0,
-    status: bookingData.status, // e.g. 'booked_credit', 'quote_requested'
+    status: bookingData.status, 
     service_status: bookingData.status === 'quote_requested' ? 'Quote Requested' : 'Pending',
     assigned_employee_ids: [],
     notes: bookingData.notes || null,
@@ -68,7 +68,7 @@ export const addBooking = async (bookingData) => {
     console.error('Error adding booking:', error);
     throw error;
   }
-  return { ...data, id: data.id }; // Ensure returned object has the short ID
+  return { ...data, id: data.id }; 
 };
 
 export const getBookingById = async (id) => {
@@ -90,17 +90,15 @@ export const getBookingById = async (id) => {
 
   return {
     ...data,
-    id: data.id, // Ensure id is the short one
+    id: data.id, 
     reference_number: data.reference_number || data.id,
     customerName: data.profile ? `${data.profile.first_name || ''} ${data.profile.last_name || ''}`.trim() : data.contact_name || 'N/A',
     customerEmail: data.profile ? data.profile.email : data.contact_email || 'N/A',
     customerPhone: data.profile ? data.profile.phone : data.contact_phone || 'N/A',
-    // Map assigned_employee_ids to full employee objects if needed, or handle in component
   };
 };
 
 export const updateBooking = async (id, updatedData) => {
-  // Ensure assignedEmployeeIds is an array, even if a single string is passed
   if (updatedData.assignedEmployeeIds && !Array.isArray(updatedData.assignedEmployeeIds)) {
     updatedData.assignedEmployeeIds = [updatedData.assignedEmployeeIds];
   } else if (updatedData.hasOwnProperty('assignedEmployeeIds') && updatedData.assignedEmployeeIds === null) {
@@ -123,7 +121,6 @@ export const updateBooking = async (id, updatedData) => {
 };
 
 export const updateAssignedEmployees = async (bookingId, employeeIds) => {
-  // Here, employeeIds should be an array of UUIDs
   const { data, error } = await supabase
     .from('bookings')
     .update({ assigned_employee_ids: employeeIds, updated_at: new Date().toISOString() })
@@ -173,12 +170,10 @@ export const cancelBooking = async (bookingId) => {
 };
 
 export const refundBooking = async (bookingId) => {
-  // Note: Refunding credits to user needs to be handled separately, possibly in AuthContext or a dedicated service
   const { data, error } = await supabase
     .from('bookings')
     .update({
       status: 'refunded',
-      // service_status: 'Refunded', // Optionally update service status
       updated_at: new Date().toISOString()
     })
     .eq('id', bookingId)
@@ -196,7 +191,7 @@ export const getBookingsByEmployeeId = async (employeeId) => {
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
-    .contains('assigned_employee_ids', [employeeId]); // Check if array contains employeeId
+    .contains('assigned_employee_ids', [employeeId]); 
 
   if (error) {
     console.error('Error fetching bookings by employee ID:', error);
@@ -208,7 +203,7 @@ export const getBookingsByEmployeeId = async (employeeId) => {
 export const getBookingsByUserId = async (userId) => {
   if (!userId) return [];
   const { data, error } = await supabase
-    .from('bookings')
+    .from('bookings') // This fetches from 'bookings' table
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
@@ -217,9 +212,23 @@ export const getBookingsByUserId = async (userId) => {
     console.error('Error fetching bookings by user ID:', error);
     return [];
   }
+  // Ensure reference_number is consistent
   return data.map(b => ({ ...b, id: b.id, reference_number: b.reference_number || b.id }));
 };
 
-// This function is no longer needed as Supabase handles it via trigger
-// export const saveBookings = (bookings) => { /* localStorage logic removed */ };
-  
+// New function to get purchases by user ID
+export const getPurchasesByUserId = async (userId) => {
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('purchases') // This fetches from 'purchases' table
+    .select('*') // Select all columns or specify needed ones like: 'purchase_ref_id, created_at, product_name, paid_amount, status'
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching purchases by user ID from "purchases" table:', error);
+    return [];
+  }
+  // Ensure essential fields like purchase_ref_id are present. The * select should cover it.
+  return data || [];
+};

@@ -2,15 +2,15 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, User, LogOut, ShieldCheck } from "lucide-react"; // Added ShieldCheck for Admin Panel
+import { Menu, X, User, LogOut, ShieldCheck } from "lucide-react"; 
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAdminAuth } from "@/contexts/AdminAuthContext"; // Import useAdminAuth
+import { useAdminAuth } from "@/contexts/AdminAuthContext"; 
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout: userLogout, loading: userLoading } = useAuth();
-  const { isAdmin, logout: adminLogout, loading: adminLoading } = useAdminAuth(); // Use admin context
+  const { isAdmin, logout: adminLogout, loading: adminLoading } = useAdminAuth(); 
   const navigate = useNavigate();
 
   const toggleMenu = () => {
@@ -19,7 +19,7 @@ const Navbar = () => {
 
   const navLinks = [
     { name: "Home", href: "/" },
-    { name: "Services", href: "/#services" },
+    { name: "Services", href: "/#our-values" }, 
     { name: "Pricing", href: "/#pricing" },
     { name: "Testimonials", href: "/#testimonials" },
     { name: "FAQ", href: "/#faq" },
@@ -33,7 +33,7 @@ const Navbar = () => {
         const element = document.getElementById(hash.substring(1));
         if (element) {
           window.scrollTo({
-            top: element.offsetTop - 80,
+            top: element.offsetTop - 80, 
             behavior: 'smooth'
           });
         }
@@ -50,14 +50,13 @@ const Navbar = () => {
     } else if (user) {
         await userLogout();
     }
-    navigate('/'); // Redirect to home after logout
+    navigate('/'); 
   };
 
   const isLoading = userLoading || adminLoading;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm shadow-sm">
-      {/* Admin Indicator */}
       {isAdmin && (
          <div className="bg-accent text-accent-foreground text-xs font-semibold text-center py-1">
             ADMIN MODE ACTIVE
@@ -71,7 +70,6 @@ const Navbar = () => {
              </Link>
           </div>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-6 lg:space-x-8">
             {navLinks.map((link) => (
               <Link
@@ -120,7 +118,6 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
           <div className="md:hidden">
             <Button variant="ghost" size="icon" onClick={toggleMenu}>
               {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -129,7 +126,6 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
@@ -195,4 +191,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-  

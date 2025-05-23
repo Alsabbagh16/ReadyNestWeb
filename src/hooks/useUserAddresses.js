@@ -34,7 +34,7 @@ export const useUserAddresses = (userId) => {
     if (userId) {
       fetchUserAddresses(userId);
     } else {
-      setAddresses([]); // Clear addresses if userId becomes null
+      setAddresses([]); 
     }
   }, [userId, fetchUserAddresses]);
 
@@ -45,10 +45,16 @@ export const useUserAddresses = (userId) => {
     }
     setLoadingAddresses(true);
     try {
-      const newAddressId = crypto.randomUUID(); // Generate UUID for the new address
+      const newAddressId = crypto.randomUUID(); 
       const { data, error } = await supabase
         .from('addresses')
-        .insert([{ ...addressData, user_id: userId, id: newAddressId }]) // Include the generated id
+        .insert([{ 
+            ...addressData, 
+            user_id: userId, 
+            id: newAddressId,
+            phone: addressData.phone || null,
+            alt_phone: addressData.alt_phone || null,
+        }]) 
         .select()
         .single();
       if (error) throw error;
@@ -66,13 +72,19 @@ export const useUserAddresses = (userId) => {
   const updateAddress = useCallback(async (addressId, addressData) => {
     setLoadingAddresses(true);
     try {
-      // Remove id from addressData if it exists, as it shouldn't be updated directly
-      const { id, ...updateData } = addressData;
+      
+      const { id, ...updatePayload } = addressData;
+      const dataToUpdate = {
+        ...updatePayload,
+        phone: addressData.phone || null,
+        alt_phone: addressData.alt_phone || null,
+      };
+
       const { data, error } = await supabase
         .from('addresses')
-        .update(updateData)
+        .update(dataToUpdate)
         .eq('id', addressId)
-        .eq('user_id', userId) // Ensure user owns the address
+        .eq('user_id', userId) 
         .select()
         .single();
       if (error) throw error;
@@ -94,7 +106,7 @@ export const useUserAddresses = (userId) => {
         .from('addresses')
         .delete()
         .eq('id', addressId)
-        .eq('user_id', userId); // Ensure user owns the address
+        .eq('user_id', userId); 
       if (error) throw error;
       setAddresses((prev) => prev.filter((addr) => addr.id !== addressId));
       toast({ title: "Address Deleted", description: "Address removed successfully." });

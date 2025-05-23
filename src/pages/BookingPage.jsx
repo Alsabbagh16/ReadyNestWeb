@@ -1,139 +1,172 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react';
+import { useBooking } from '@/contexts/BookingContext';
+import { useToast } from "@/components/ui/use-toast";
+import { fetchAddonTemplates } from '@/lib/storage/productStorage';
+
 import Step1PropertyType from '@/components/BookingProcess/Step1PropertyType';
 import Step2HomeSize from '@/components/BookingProcess/Step2HomeSize';
+import Step2AirbnbSize from '@/components/BookingProcess/Step2AirbnbSize'; 
 import Step3CleaningType from '@/components/BookingProcess/Step3CleaningType';
+import Step3AirbnbCleaningType from '@/components/BookingProcess/Step3AirbnbCleaningType';
 import BookingSummaryPage from '@/components/BookingProcess/BookingSummaryPage';
 
 const BookingPage = () => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [selections, setSelections] = useState({
-    propertyType: null,
-    homeSize: null,
-    cleaningType: null,
-  });
-  const [addonTemplates, setAddonTemplates] = useState([]);
+  const { selections, updateSelection, findAndSetMatchingProduct, resetSelections, matchedProduct, loadingProductMatch } = useBooking();
   const { toast } = useToast();
-
-  const totalStepsForHome = 3;
-  const totalStepsForAirbnb = 1; 
+  const [addonTemplates, setAddonTemplates] = useState([]);
+  const [loadingAddons, setLoadingAddons] = useState(true);
 
   useEffect(() => {
-    const fetchAddons = async () => {
+    const loadAddons = async () => {
       try {
-        const { data, error } = await supabase.from('addon_templates').select('*');
-        if (error) throw error;
-        setAddonTemplates(data || []);
+        setLoadingAddons(true);
+        const templates = await fetchAddonTemplates();
+        setAddonTemplates(templates);
       } catch (error) {
         toast({
-          title: "Error fetching addons",
-          description: error.message,
+          title: "Error",
+          description: "Could not load addon services. Please try again.",
           variant: "destructive",
         });
+      } finally {
+        setLoadingAddons(false);
       }
     };
-    if (currentStep === 'summary') {
-      fetchAddons();
-    }
-  }, [currentStep, toast]);
+    loadAddons();
+  }, [toast]);
 
-  const handleNext = () => {
-    if (selections.propertyType === 'home') {
-      if (currentStep === 1 && selections.propertyType) setCurrentStep(2);
-      else if (currentStep === 2 && selections.homeSize) setCurrentStep(3);
-      else if (currentStep === 3 && selections.cleaningType) setCurrentStep('summary');
-    } else if (selections.propertyType === 'airbnb') {
-      if (currentStep === 1 && selections.propertyType) setCurrentStep('summary');
-    }
-  };
+  const totalSteps = selections.propertyType === 'home' ? 4 : selections.propertyType === 'airbnb' ? 4 : 1;
+  const progress = (currentStep / totalSteps) * 100;
 
-  const handleBack = () => {
-    if (currentStep === 'summary') {
-      setCurrentStep(selections.propertyType === 'home' ? 3 : 1);
-    } else if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+  const handleSelection = useCallback((stepKey, value) => {
+    updateSelection(stepKey, value);
+  }, [updateSelection]);
 
-  const updateSelection = (stepKey, value) => {
-    let newSelections = { ...selections, [stepKey]: value };
-    if (stepKey === 'propertyType') {
-      newSelections.homeSize = null;
-      newSelections.cleaningType = null;
-    } else if (stepKey === 'homeSize') {
-      newSelections.cleaningType = null;
+  const nextStep = useCallback(async () => {
+    if (currentStep < totalSteps) {
+      if (currentStep === 3 && selections.propertyType === 'home' && selections.homeSize && selections.cleaningType) {
+        await findAndSetMatchingProduct();
+      } else if (currentStep === 3 && selections.propertyType === 'airbnb' && selections.homeSize && selections.cleaningType) {
+        await findAndSetMatchingProduct(); 
+      }
+      setCurrentStep(prev => prev + 1);
     }
-    setSelections(newSelections);
+  }, [currentStep, totalSteps, selections, findAndSetMatchingProduct]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    }
+  }, [currentStep]);
+
+  const handleReset = () => {
+    resetSelections();
+    setCurrentStep(1);
+    toast({ title: "Selections Reset", description: "You can start your booking from scratch." });
   };
 
   const isNextDisabled = () => {
     if (currentStep === 1 && !selections.propertyType) return true;
-    if (selections.propertyType === 'home') {
-      if (currentStep === 2 && !selections.homeSize) return true;
-      if (currentStep === 3 && !selections.cleaningType) return true;
-    }
+    if (currentStep === 2 && !selections.homeSize) return true;
+    if (currentStep === 3 && !selections.cleaningType) return true;
+    if (loadingProductMatch) return true;
     return false;
   };
-  
-  const getProgress = () => {
-    if (currentStep === 'summary') return 100;
-    const completedSteps = currentStep -1;
-    const totalProcessSteps = selections.propertyType === 'home' ? totalStepsForHome : totalStepsForAirbnb;
-    return (completedSteps / totalProcessSteps) * 100;
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 1:
+        return <Step1PropertyType onSelect={(value) => handleSelection('propertyType', value)} currentSelection={selections.propertyType} />;
+      case 2:
+        if (selections.propertyType === 'home') {
+          return <Step2HomeSize onSelect={(value) => handleSelection('homeSize', value)} currentSelection={selections.homeSize} />;
+        } else if (selections.propertyType === 'airbnb') {
+          return <Step2AirbnbSize onSelect={(value) => handleSelection('homeSize', value)} currentSelection={selections.homeSize} />;
+        }
+        return null; 
+      case 3:
+        if (selections.propertyType === 'home') {
+          return <Step3CleaningType onSelect={(value) => handleSelection('cleaningType', value)} currentSelection={selections.cleaningType} />;
+        } else if (selections.propertyType === 'airbnb') {
+          return <Step3AirbnbCleaningType onSelect={(value) => handleSelection('cleaningType', value)} currentSelection={selections.cleaningType} />;
+        }
+        return null;
+      case 4:
+        return <BookingSummaryPage addonTemplates={addonTemplates} />;
+      default:
+        return null;
+    }
   };
 
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/10 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {currentStep !== 'summary' && (
-          <Progress value={getProgress()} className="w-full h-3 mb-8 [&>div]:bg-primary" />
-        )}
-        
-        <AnimatePresence mode="wait">
-          {currentStep === 1 && (
-            <Step1PropertyType key="step1" onSelect={(val) => updateSelection('propertyType', val)} currentSelection={selections.propertyType} />
-          )}
-          {currentStep === 2 && selections.propertyType === 'home' && (
-            <Step2HomeSize key="step2" onSelect={(val) => updateSelection('homeSize', val)} currentSelection={selections.homeSize} />
-          )}
-          {currentStep === 3 && selections.propertyType === 'home' && (
-            <Step3CleaningType key="step3" onSelect={(val) => updateSelection('cleaningType', val)} currentSelection={selections.cleaningType} />
-          )}
-          {currentStep === 'summary' && (
-            <BookingSummaryPage key="summary" selections={selections} addonTemplates={addonTemplates} />
-          )}
-        </AnimatePresence>
+    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="bg-card shadow-2xl border-border dark:bg-slate-800 dark:border-slate-700">
+            <CardContent className="p-6 sm:p-10">
+              {currentStep <= totalSteps && (
+                <div className="mb-8">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-primary dark:text-sky-400">
+                      Step {currentStep} of {totalSteps}
+                    </span>
+                    {currentStep > 1 && currentStep < totalSteps && (
+                       <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-primary dark:text-slate-400 dark:hover:text-sky-400">
+                         <RotateCcw className="h-4 w-4 mr-1.5" /> Reset
+                       </Button>
+                    )}
+                  </div>
+                  <Progress value={progress} className="w-full h-2 [&>div]:bg-gradient-to-r [&>div]:from-sky-500 [&>div]:to-cyan-500" />
+                </div>
+              )}
+              
+              <AnimatePresence mode="wait">
+                <div key={currentStep}>
+                  {renderCurrentStep()}
+                </div>
+              </AnimatePresence>
 
-        <div className="flex justify-between pt-8">
-          <Button 
-            variant="outline" 
-            onClick={handleBack} 
-            disabled={currentStep === 1} 
-            className="bg-card hover:bg-muted/50 border-border text-foreground px-6 py-3 text-base"
-          >
-            <ArrowLeft className="mr-2 h-5 w-5" /> Back
-          </Button>
-          {currentStep !== 'summary' && (
-            <Button 
-              onClick={handleNext} 
-              disabled={isNextDisabled()} 
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 text-base font-semibold"
-            >
-              Next <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          )}
-        </div>
+              {currentStep < totalSteps && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="mt-10 flex justify-between items-center"
+                >
+                  <Button
+                    onClick={prevStep}
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary/10 dark:border-sky-500 dark:text-sky-400 dark:hover:bg-sky-500/10"
+                    disabled={currentStep === 1}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+                  </Button>
+                  <Button
+                    onClick={nextStep}
+                    className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white font-semibold disabled:opacity-60"
+                    disabled={isNextDisabled()}
+                  >
+                    {loadingProductMatch ? 'Matching...' : 'Next'} <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   );
 };
 
 export default BookingPage;
-  

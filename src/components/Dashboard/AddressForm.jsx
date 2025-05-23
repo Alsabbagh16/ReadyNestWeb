@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { DialogFooter } from "@/components/ui/dialog"; // Assuming DialogFooter is used here
+import { DialogFooter } from "@/components/ui/dialog"; 
 
 const AddressForm = ({ address, onSave, onCancel }) => {
   const [street, setStreet] = useState(address?.street || '');
@@ -11,6 +11,8 @@ const AddressForm = ({ address, onSave, onCancel }) => {
   const [state, setState] = useState(address?.state || '');
   const [zip, setZip] = useState(address?.zip || address?.zip_code || '');
   const [label, setLabel] = useState(address?.label || '');
+  const [phone, setPhone] = useState(address?.phone || '');
+  const [altPhone, setAltPhone] = useState(address?.alt_phone || '');
   const [isDefault, setIsDefault] = useState(address?.is_default || false);
 
 
@@ -20,7 +22,17 @@ const AddressForm = ({ address, onSave, onCancel }) => {
         alert("Please fill all required address fields (Street, City, State, Zip).");
         return;
     }
-    onSave({ id: address?.id, street, city, state, zip, label, is_default: isDefault });
+    onSave({ 
+      id: address?.id, 
+      street, 
+      city, 
+      state, 
+      zip, 
+      label, 
+      phone, 
+      alt_phone: altPhone, 
+      is_default: isDefault 
+    });
   };
 
   return (
@@ -46,6 +58,16 @@ const AddressForm = ({ address, onSave, onCancel }) => {
       <div>
         <Label htmlFor="addr-zip">Zip Code</Label>
         <Input id="addr-zip" value={zip} onChange={(e) => setZip(e.target.value)} required className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="addr-phone">Phone (Optional)</Label>
+          <Input id="addr-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Primary phone for this address" className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
+        </div>
+        <div>
+          <Label htmlFor="addr-alt-phone">Alt. Phone (Optional)</Label>
+          <Input id="addr-alt-phone" type="tel" value={altPhone} onChange={(e) => setAltPhone(e.target.value)} placeholder="Alternative phone" className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
+        </div>
       </div>
        <div className="flex items-center space-x-2">
 

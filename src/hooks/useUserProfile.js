@@ -3,16 +3,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 
-export const useUserProfile = (userId, initialProfile = null, initialCredits = 0) => {
-  const [profile, setProfile] = useState(initialProfile);
-  const [credits, setCredits] = useState(initialCredits);
+export const useUserProfile = (userId, initialProfileData = null, initialCreditsData = 0) => {
+  const [profile, setProfile] = useState(initialProfileData);
+  const [credits, setCredits] = useState(initialCreditsData);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const { toast } = useToast();
 
   const fetchUserProfile = useCallback(async (idToFetch) => {
-    console.log(`[useUserProfile] fetchUserProfile called for ID: ${idToFetch}`);
     if (!idToFetch) {
-      console.log('[useUserProfile] No ID to fetch, resetting profile and credits.');
       setProfile(null);
       setCredits(0);
       return;
@@ -23,22 +21,10 @@ export const useUserProfile = (userId, initialProfile = null, initialCredits = 0
         .from('profiles')
         .select('*')
         .eq('id', idToFetch)
-        .maybeSingle(); // Using maybeSingle() instead of single() to avoid the PGRST116 error
-
-      if (error) {
-        console.error('[useUserProfile] fetchUserProfile error:', error.message);
-        throw error;
-      }
-      
-      if (data) {
-        console.log('[useUserProfile] Profile data found:', data);
-        setProfile(data);
-        setCredits(data.credits || 0);
-      } else {
-        console.log('[useUserProfile] No profile data found for ID:', idToFetch);
-        setProfile(null);
-        setCredits(0);
-      }
+        .single();
+      if (error) throw error;
+      setProfile(data || null);
+      setCredits(data?.credits || 0);
     } catch (error) {
       toast({ title: "Error", description: "Could not fetch user profile.", variant: "destructive" });
       setProfile(null);
@@ -57,90 +43,94 @@ export const useUserProfile = (userId, initialProfile = null, initialCredits = 0
     }
   }, [userId, fetchUserProfile]);
 
-  const updateUserProfileData = useCallback(async (updatedData) => {
+  const updateUserProfile = useCallback(async (updatedData) => {
     if (!userId) {
       toast({ title: "Update Failed", description: "User not available.", variant: "destructive" });
-      return null;
+      return;
     }
     setLoadingProfile(true);
+    
+    const dataForSupabase = { ...updatedData };
+    if (dataForSupabase.password === '' || dataForSupabase.password === null || dataForSupabase.password === undefined) {
+        delete dataForSupabase.password; 
+    }
+    
+    if (dataForSupabase.password) {
+        const { error: authError } = await supabase.auth.updateUser({ password: dataForSupabase.password });
+        if (authError) {
+            setLoadingProfile(false);
+            toast({ title: "Password Update Failed", description: authError.message, variant: "destructive" });
+            throw authError; 
+        }
+        delete dataForSupabase.password;
+        delete dataForSupabase.current_password; 
+    }
+
+    const profileUpdatePayload = {
+        first_name: dataForSupabase.first_name,
+        last_name: dataForSupabase.last_name,
+        dob: dataForSupabase.dob,
+        user_type: dataForSupabase.user_type,
+        credits: dataForSupabase.credits,
+        updated_at: new Date().toISOString(),
+    };
+    
+    // Explicitly include phone in the payload if it's present in updatedData
+    // This ensures it's updated even if it's an empty string (to clear it)
+    if ('phone' in dataForSupabase) {
+        profileUpdatePayload.phone = dataForSupabase.phone;
+    }
+
+
     try {
-      // Handle password update if included
-      if (updatedData.password) {
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: updatedData.password
-        });
-        if (passwordError) throw passwordError;
-      }
-
-      // Remove password-related fields from profile update
-      const { password, currentPassword, confirmPassword, ...profileData } = updatedData;
-
-      // Update profile data
-      const { data, error: profileError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .update({
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          dob: profileData.dob,
-          updated_at: new Date().toISOString()
-        })
+        .update(profileUpdatePayload)
         .eq('id', userId)
         .select()
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-      
-      if (data) {
-        setProfile(data);
-        toast({ title: "Success", description: "Profile updated successfully" });
-        return data;
-      }
+        .single();
+      if (error) throw error;
+      setProfile(data);
+      setCredits(data.credits); 
+      toast({ title: "Profile Updated", description: "Your profile details have been saved." });
     } catch (error) {
-      console.error('Profile update error:', error);
-      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
-      throw error;
+      toast({ title: "Profile Update Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [userId, toast]);
+  
+  const updateCredits = useCallback(async (newCredits) => {
+    if (!userId) return;
+    setLoadingProfile(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ credits: newCredits, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+        .select('credits')
+        .single();
+      if (error) throw error;
+      setCredits(data.credits);
+      toast({ title: "Credits Updated", description: `Your credit balance is now ${data.credits}.` });
+    } catch (error) {
+      toast({ title: "Credits Update Failed", description: error.message, variant: "destructive" });
     } finally {
       setLoadingProfile(false);
     }
   }, [userId, toast]);
 
-  const updateUserCredits = useCallback(async (amount) => {
-    if (!userId || !profile) {
-      toast({ title: "Credit Update Failed", description: "User not available.", variant: "destructive" });
-      throw new Error("User not available");
-    }
-    setLoadingProfile(true);
-    try {
-      const newCreditsTotal = (profile.credits || 0) + amount;
-      if (newCreditsTotal < 0) {
-        throw new Error("Insufficient credits");
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ credits: newCreditsTotal, updated_at: new Date().toISOString() })
-        .eq('id', userId)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      
-      if (data) {
-        setProfile(data);
-        setCredits(data.credits);
-        return data.credits;
-      }
-    } catch (error) {
-      toast({ title: "Credit Update Failed", description: error.message, variant: "destructive" });
-      throw error;
-    } finally {
-      setLoadingProfile(false);
-    }
-  }, [userId, profile, toast]);
-
   const resetProfile = useCallback(() => {
     setProfile(null);
     setCredits(0);
+  }, []);
+
+  const stableSetProfile = useCallback((newProfile) => {
+    setProfile(newProfile);
+  }, []);
+
+  const stableSetCredits = useCallback((newCredits) => {
+    setCredits(newCredits);
   }, []);
 
   return {
@@ -148,10 +138,10 @@ export const useUserProfile = (userId, initialProfile = null, initialCredits = 0
     credits,
     loadingProfile,
     fetchUserProfile,
-    updateUserProfile: updateUserProfileData,
-    updateCredits: updateUserCredits,
-    setProfile: setProfile,
-    setCredits: setCredits,
+    updateUserProfile,
+    updateCredits,
+    setProfile: stableSetProfile,
+    setCredits: stableSetCredits,
     resetProfile,
   };
 };

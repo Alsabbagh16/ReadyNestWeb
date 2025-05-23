@@ -3,8 +3,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBooking } from '@/contexts/BookingContext';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
+
 
 import UserDetailsSection from './summary/UserDetailsSection';
 import BookingItemsSection from './summary/BookingItemsSection';
@@ -18,21 +23,51 @@ const stepVariants = {
   transition: { duration: 0.3, ease: "easeInOut" }
 };
 
-const BookingSummaryPage = ({ selections, addonTemplates }) => {
+const generatePurchaseRefId = () => {
+  return `CS-${uuidv4().substring(0, 8).toUpperCase()}`;
+};
+
+const BookingSummaryPage = ({ addonTemplates: allAddonTemplates }) => {
   const [selectedAddons, setSelectedAddons] = useState([]);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile, addresses } = useAuth();
+  const { selections, matchedProduct, loadingProductMatch, resetSelections: resetBookingContextSelections } = useBooking();
+  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [guestDetails, setGuestDetails] = useState({
     fullName: '', email: '', phone: '', street: '', city: '', state: '', zip: ''
   });
   const [bookingDate, setBookingDate] = useState('');
+  const [additionalBookingDates, setAdditionalBookingDates] = useState({ date2: '', date3: '', date4: '' });
   const [selectedAddressId, setSelectedAddressId] = useState(null);
-  
-  // This state specifically tracks if the "Continue as Guest" button was clicked
-  // to reveal the guest form, as UserDetailsSection handles its own internal 'showGuestForm'
-  // for rendering, but parent needs to know this choice was made for validation.
-  const [isGuestFlowActive, setIsGuestFlowActive] = useState(false); 
+  const [isGuestFlowActive, setIsGuestFlowActive] = useState(false);
+
+  const [currentAddonTemplates, setCurrentAddonTemplates] = useState([]);
+
+  useEffect(() => {
+    if (user && addresses && addresses.length > 0) {
+        const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+        if (defaultAddress) {
+            setSelectedAddressId(defaultAddress.id);
+        }
+    }
+  }, [user, addresses]);
+
+  useEffect(() => {
+    if (matchedProduct && matchedProduct.linked_addons) {
+      setCurrentAddonTemplates(matchedProduct.linked_addons);
+      // Reset selected addons if they are not part of the new linked addons
+      setSelectedAddons(prev => prev.filter(addonId => 
+        matchedProduct.linked_addons.some(linkedAddon => linkedAddon.id === addonId)
+      ));
+    } else {
+      // Fallback or default behavior if no product is matched or no linked_addons
+      // For now, if no product match, show all addons. This could be changed.
+      setCurrentAddonTemplates(allAddonTemplates || []);
+    }
+  }, [matchedProduct, allAddonTemplates]);
+
 
   const handleAddonToggle = useCallback((addonId) => {
     setSelectedAddons(prev =>
@@ -42,8 +77,6 @@ const BookingSummaryPage = ({ selections, addonTemplates }) => {
 
   const handleGuestDetailsChange = useCallback((newDetails) => {
     setGuestDetails(newDetails);
-    // If guest details are being filled, it implies guest flow is active.
-    // This might need refinement if guest form can be shown then hidden without clearing details.
     if (Object.values(newDetails).some(val => val !== '')) {
         setIsGuestFlowActive(true); 
     }
@@ -57,85 +90,157 @@ const BookingSummaryPage = ({ selections, addonTemplates }) => {
     setBookingDate(date);
   }, []);
 
+  const handleAdditionalBookingDateChange = useCallback((dateKey, value) => {
+    setAdditionalBookingDates(prev => ({...prev, [dateKey]: value}));
+  }, []);
+
+
   const calculatePrice = useCallback(() => {
     let basePrice = 0;
-    if (selections.propertyType === 'home') {
-      if (selections.homeSize === 'small') basePrice = 100;
-      else if (selections.homeSize === 'medium') basePrice = 150;
-      else if (selections.homeSize === 'large') basePrice = 200;
-      if (selections.cleaningType === 'recurring') basePrice *= 0.9;
-    } else if (selections.propertyType === 'airbnb') {
-      basePrice = 120;
+    if (matchedProduct && matchedProduct.price) {
+      basePrice = Number(matchedProduct.price);
+    } else {
+      if (selections.propertyType === 'home') {
+        if (selections.homeSize === 'small') basePrice = 100;
+        else if (selections.homeSize === 'medium') basePrice = 150;
+        else if (selections.homeSize === 'large') basePrice = 200;
+      } else if (selections.propertyType === 'airbnb') {
+        if (selections.homeSize === 'small') basePrice = 120; 
+        else if (selections.homeSize === 'medium') basePrice = 180; 
+        else if (selections.homeSize === 'large') basePrice = 250; 
+      }
+      if (selections.cleaningType === 'recurring' && !(matchedProduct && matchedProduct.price)) {
+         basePrice *= 0.9; 
+      }
     }
+    
     const addonsPrice = selectedAddons.reduce((total, addonId) => {
-      const addon = addonTemplates.find(a => a.id === addonId);
+      const addon = currentAddonTemplates.find(a => a.id === addonId);
       return total + (addon ? Number(addon.price) : 0);
     }, 0);
     return basePrice + addonsPrice;
-  }, [selections, selectedAddons, addonTemplates]);
+  }, [selections, selectedAddons, currentAddonTemplates, matchedProduct]);
 
   const isCheckoutDisabled = () => {
+    if (loadingProductMatch || isSubmitting) return true;
     if (!bookingDate) return true;
+
+    if (selections.cleaningType === 'recurring') {
+      if (!additionalBookingDates.date2 || !additionalBookingDates.date3 || !additionalBookingDates.date4) {
+        return true;
+      }
+    }
+
     if (user) {
       return !selectedAddressId;
     }
-    // For guest flow, ensure guestDetails are complete
-    // We rely on UserDetailsSection to show the form, but here we check if it's been activated
-    // and if the details are actually filled.
     if (isGuestFlowActive) { 
         const requiredGuestFields = ['fullName', 'email', 'phone', 'street', 'city', 'state', 'zip'];
         for (const field of requiredGuestFields) {
-            if (!guestDetails[field]) return true; // Disable if any required field is empty
+            if (!guestDetails[field]) return true;
         }
-        return false; // All guest fields filled
+        return false; 
     }
-    // If not user and not active guest flow, disable (meaning login/register/continue as guest not chosen)
     return true; 
   };
 
-
-  const handleProceedToCheckout = () => {
-    if (!bookingDate) {
-        toast({ title: "Missing Information", description: "Please select a preferred booking date.", variant: "destructive" });
+  const handleProceedToCheckout = async () => {
+    if (isCheckoutDisabled()) {
+        toast({ title: "Missing Information", description: "Please complete all required fields.", variant: "destructive" });
         return;
     }
+    setIsSubmitting(true);
 
-    if (user && !selectedAddressId) {
-        toast({ title: "Missing Information", description: "Please select or add a service address.", variant: "destructive" });
-        return;
-    }
+    const purchaseRefId = generatePurchaseRefId();
+    const finalPrice = calculatePrice();
     
-    // Check guest details only if user is not logged in AND guest flow is active
-    if (!user && isGuestFlowActive) {
-        const requiredGuestFields = ['fullName', 'email', 'phone', 'street', 'city', 'state', 'zip'];
-        for (const field of requiredGuestFields) {
-            if (!guestDetails[field]) {
-                toast({ title: "Missing Information", description: `Please fill in all guest details, including ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}.`, variant: "destructive" });
-                return;
-            }
-        }
-    } else if (!user && !isGuestFlowActive) {
-        // This case means user is not logged in, and hasn't opted for guest flow yet.
-        // The button should ideally be disabled by isCheckoutDisabled, but double check here.
-        toast({ title: "Action Required", description: "Please login, register, or choose to continue as a guest.", variant: "info" });
-        return;
-    }
-
-    const bookingData = {
-        selections,
-        selectedAddons: selectedAddons.map(id => addonTemplates.find(a => a.id === id)),
-        totalPrice: calculatePrice(),
-        preferredBookingDate: bookingDate,
-        ...(user && selectedAddressId && { userId: user.id, addressId: selectedAddressId }),
-        ...(!user && isGuestFlowActive && { guestInfo: guestDetails })
+    let purchaseData = {
+      purchase_ref_id: purchaseRefId,
+      product_id: matchedProduct?.id || null,
+      product_name: matchedProduct?.name || `Custom ${selections.propertyType === 'home' ? 'Home' : 'Airbnb'} Booking`,
+      payment_type: 'Placeholder - Pending Payment', 
+      paid_amount: finalPrice,
+      status: 'Pending Confirmation', 
+      selected_addons: selectedAddons.map(id => currentAddonTemplates.find(a => a.id === id)).filter(Boolean),
+      preferred_booking_date: bookingDate,
+      additional_preferred_dates: selections.cleaningType === 'recurring' ? additionalBookingDates : null,
+      raw_selections: {
+        propertyType: selections.propertyType,
+        size: selections.homeSize, 
+        cleaningType: selections.cleaningType,
+      }
     };
-    
-    toast({
-      title: "Proceeding to Checkout",
-      description: "This feature is coming soon! Your selections have been captured.",
-      variant: "default"
-    });
-    console.log("Booking Data:", bookingData);
+
+    if (user && profile) {
+      purchaseData.user_id = user.id;
+      purchaseData.email = profile.email || user.email;
+      purchaseData.name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || user.email;
+      const userAddress = addresses.find(addr => addr.id === selectedAddressId);
+      purchaseData.address = userAddress ? { 
+        street: userAddress.street, 
+        city: userAddress.city, 
+        state: userAddress.state, 
+        zip: userAddress.zip || userAddress.zip_code,
+        country: userAddress.country,
+        label: userAddress.label
+      } : null;
+    } else if (isGuestFlowActive) {
+      purchaseData.email = guestDetails.email;
+      purchaseData.name = guestDetails.fullName;
+      purchaseData.address = {
+        street: guestDetails.street,
+        city: guestDetails.city,
+        state: guestDetails.state,
+        zip: guestDetails.zip,
+      };
+    }
+
+    console.log("Attempting to save purchase:", purchaseData);
+
+    try {
+      const { data: insertedPurchase, error } = await supabase
+        .from('purchases')
+        .insert([purchaseData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error saving purchase:", error);
+        toast({
+          title: "Booking Failed",
+          description: `Could not save your booking. ${error.message}`,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      console.log("Purchase saved successfully:", insertedPurchase);
+      toast({
+        title: "Booking Submitted!",
+        description: "Your booking request has been submitted. Redirecting to confirmation...",
+      });
+      
+      resetBookingContextSelections();
+      setSelectedAddons([]);
+      setGuestDetails({ fullName: '', email: '', phone: '', street: '', city: '', state: '', zip: '' });
+      setBookingDate('');
+      setAdditionalBookingDates({ date2: '', date3: '', date4: '' });
+      setSelectedAddressId(null);
+      setIsGuestFlowActive(false);
+
+      navigate('/booking-confirmation', { state: { purchaseDetails: insertedPurchase } });
+
+    } catch (e) {
+      console.error("Unexpected error during checkout:", e);
+      toast({
+        title: "Booking Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,30 +254,49 @@ const BookingSummaryPage = ({ selections, addonTemplates }) => {
           <CardDescription className="mt-2 text-lg text-muted-foreground dark:text-slate-400">Review your selections before proceeding.</CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
+          {loadingProductMatch && (
+            <div className="flex items-center justify-center text-primary dark:text-sky-400">
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Matching your service...
+            </div>
+          )}
+          {matchedProduct && !loadingProductMatch && (
+            <div className="p-3 bg-green-100 border border-green-300 rounded-md text-green-700 text-sm dark:bg-green-900/30 dark:border-green-700 dark:text-green-300">
+              Service: {matchedProduct.name} (Price: ${Number(matchedProduct.price).toFixed(2)})
+            </div>
+          )}
+          {!matchedProduct && !loadingProductMatch && (selections.propertyType === 'home' || selections.propertyType === 'airbnb') && (
+             <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-md text-yellow-700 text-sm dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300">
+              No direct product match found. Price estimated. Proceeding with general booking.
+            </div>
+          )}
+
           <BookingItemsSection 
             selections={selections} 
-            addonTemplates={addonTemplates} 
+            addonTemplates={currentAddonTemplates} 
             selectedAddons={selectedAddons}
             onAddonToggle={handleAddonToggle}
+            matchedProduct={matchedProduct}
           />
           <UserDetailsSection 
             onAddressSelect={handleAddressSelect}
             onGuestDetailsChange={handleGuestDetailsChange}
             currentSelectedAddressId={selectedAddressId}
             currentGuestDetails={guestDetails}
-            // This prop tells UserDetailsSection that guest flow is active by parent decision
-            // It's a bit indirect, better if UserDetailsSection reported its state up.
-            // For now, we use isGuestFlowActive to determine if form should be validated.
-            // setIsGuestFlowActive will be called implicitly when guest details change via onGuestDetailsChange
+            onIsGuestFlowActiveChange={setIsGuestFlowActive}
           />
           <BookingDateSection 
             bookingDate={bookingDate}
             onBookingDateChange={handleBookingDateChange}
+            additionalBookingDates={additionalBookingDates}
+            onAdditionalBookingDateChange={handleAdditionalBookingDateChange}
+            cleaningType={selections.cleaningType}
           />
           <PriceAndCheckoutSection 
             totalPrice={calculatePrice()}
             onProceedToCheckout={handleProceedToCheckout}
             isProceedDisabled={isCheckoutDisabled()}
+            isSubmitting={isSubmitting}
           />
         </CardContent>
       </Card>
